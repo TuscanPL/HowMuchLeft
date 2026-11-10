@@ -14,6 +14,7 @@
 // Transfers between our accounts and savings movements never count; neither do
 // ignored transactions or accounts left out of the pocket.
 import type { CategoryKind } from './enums.ts'
+import { billDueIn, monthlyCost, nextBillMonth } from './bills.ts'
 import {
   addDays,
   daysBetween,
@@ -48,6 +49,11 @@ export interface PocketBill {
   amount: number
   due_day: number
   active: boolean
+  category_id?: string | null
+  /** 1 = monthly (default), 3 = quarterly, 12 = yearly. */
+  every_months?: number
+  due_month?: number | null
+  spread?: boolean
 }
 
 export interface PocketIncome {
@@ -79,9 +85,19 @@ export interface PocketInput {
 
 export interface BillStatus {
   bill: PocketBill
-  due: IsoDate
+  /** Paid in this budget month (always, for a monthly bill). */
+  dueThisMonth: boolean
+  /** When, if it's paid this month. */
+  due: IsoDate | null
+  /** The next month it's paid: this one, or a later one for yearly / quarterly bills. */
+  nextDue: string
   paid: boolean
-  /** What was paid (positive), or the expected amount when not paid yet. */
+  /** What was actually paid this month (positive), 0 if nothing yet. */
+  paidAmount: number
+  /**
+   * What this month sets aside for it: the paid (or expected) amount in the
+   * month it's due, a share every month when spread, nothing otherwise.
+   */
   amount: number
 }
 
@@ -153,19 +169,38 @@ export function computePocket(input: PocketInput): Pocket {
   )
 
   // Bills: paid amount once matched, else the expected amount.
+  const month = period.month ?? period.start.slice(0, 7)
   const billStatuses: BillStatus[] = input.bills
     .filter((b) => b.active)
     .map((bill) => {
+      const recurring = {
+        amount: bill.amount,
+        every_months: bill.every_months ?? 1,
+        due_month: bill.due_month ?? null,
+        spread: bill.spread ?? false,
+      }
+      const dueThisMonth = billDueIn(recurring, month)
       const paidTx = inPeriod.filter((t) => t.bill_id === bill.id)
       const paid = paidTx.length > 0
+      const paidAmount = paid ? round2(-sum(paidTx.map((t) => t.amount))) : 0
+      let amount: number
+      if (recurring.every_months > 1 && recurring.spread) amount = monthlyCost(recurring)
+      else if (paid) amount = paidAmount
+      else amount = dueThisMonth ? bill.amount : 0
       return {
         bill,
-        due: dueDateInPeriod(period, bill.due_day),
+        dueThisMonth,
+        due: dueThisMonth ? dueDateInPeriod(period, bill.due_day) : null,
+        nextDue: nextBillMonth(recurring, month),
         paid,
-        amount: paid ? round2(-sum(paidTx.map((t) => t.amount))) : bill.amount,
+        paidAmount,
+        amount,
       }
     })
-    .sort((a, b) => a.due.localeCompare(b.due))
+    .sort(
+      (a, b) =>
+        (a.due ?? '9999').localeCompare(b.due ?? '9999') || a.nextDue.localeCompare(b.nextDue),
+    )
   // A payment matched to a bill that was since switched off counts like any other spending.
   const activeBillIds = new Set(billStatuses.map((s) => s.bill.id))
 
@@ -214,7 +249,8 @@ export function computePocket(input: PocketInput): Pocket {
   )
   const income = sum(incomeStatuses.map((s) => s.amount)) + otherIncome
   const bills = sum(billStatuses.map((s) => s.amount))
-  const billsUnpaid = sum(billStatuses.filter((s) => !s.paid).map((s) => s.amount))
+  // Still to pay this month, in cash.
+  const billsUnpaid = sum(billStatuses.filter((s) => s.due && !s.paid).map((s) => s.bill.amount))
   const inPocket = round2(income - bills - goals - spent)
   const daysLeft = Math.max(
     1,
@@ -229,7 +265,10 @@ export function computePocket(input: PocketInput): Pocket {
     const cutoff = late ? today : next.expected
     const receivedSoFar = sum(incomeStatuses.filter((s) => s.received).map((s) => s.amount))
     const billsBefore = sum(
-      billStatuses.filter((b) => b.paid || b.due <= cutoff).map((b) => b.amount),
+      // Cash, not set-asides: what's paid, plus what falls due by then.
+      billStatuses.map((b) =>
+        b.paid ? b.paidAmount : b.due && b.due <= cutoff ? b.bill.amount : 0,
+      ),
     )
     const available = round2(receivedSoFar + otherIncome - billsBefore - spent)
     const daysUntil = late ? null : Math.max(1, daysBetween(today, next.expected))

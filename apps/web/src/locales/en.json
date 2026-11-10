@@ -133,7 +133,7 @@
     "income": "Income",
     "incomeHelp": "What comes in each month. The first salary to arrive starts the budget month; the others are the second influx. Anything paid from the 24th on counts for the next month. Until a salary arrives, the expected amount counts.",
     "bills": "Bills",
-    "billsHelp": "Set aside up front. A bank payment containing the match text marks the bill paid.",
+    "billsHelp": "Fixed costs, set aside up front. A bank payment containing the match text marks the bill paid. Totals are per month: a yearly 600 zł counts as 50 zł.",
     "goals": "Goals",
     "goalsHelp": "The monthly amount is set aside until the goal is reached.",
     "budgets": "Categories & budgets",
@@ -177,7 +177,26 @@
     "deleteConfirm": "Delete \"{name}\"?",
     "startsMonth": "Payday: its arrival can start the budget month",
     "startsMonthHelp": "Turn off for smaller regular transfers in that shouldn't move the month.",
-    "payday": "payday"
+    "payday": "payday",
+    "otherBills": "Other bills",
+    "yearlyIn": "yearly, next in {month} (day {day})",
+    "everyIn": "every {n} months, next in {month}",
+    "perMonthShort": "{amount} / month",
+    "allAtOnce": "all at once",
+    "howOften": "How often",
+    "every": {
+      "1": "Monthly",
+      "2": "Every 2 months",
+      "3": "Quarterly",
+      "6": "Every 6 months",
+      "12": "Yearly"
+    },
+    "paidIn": "Paid in",
+    "nextIn": "Next paid in",
+    "setAside": "Set money aside",
+    "spread": "A bit every month ({amount})",
+    "spreadHelp": "So the month it renews isn't a shock.",
+    "atOnce": "All in {month}, when it's paid"
   },
   "kinds": {
     "expense": "Spending",

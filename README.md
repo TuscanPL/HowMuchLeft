@@ -33,7 +33,7 @@ in my pocket = income − bills − goals − spent so far
 ```
 
 - **Income**: every expected income (salaries) counts its amount until the transfer arrives, then the real amount. Any other money in counts too, except transfers between your own accounts and refunds.
-- **Bills**: every active bill (rent, phone, subscriptions) is set aside up front. Once a bank payment contains the bill's match text (e.g. `czynsz`, `orange`), the bill is marked paid and the real amount counts.
+- **Bills**: every active bill (rent, subscriptions, a developer you pay monthly) is set aside up front. Once a bank payment contains the bill's match text (e.g. `czynsz`, `netflix`), the bill is marked paid and the real amount counts. Bills can repeat **monthly, every 2 or 3 months, every 6 months or yearly**. A bill that isn't monthly is either set aside **a bit every month** (a yearly 499 zł → 41,58 zł a month, the default) or **all in the month it's paid**. Its payment never counts as spending. In **Plan → Bills**, bills are grouped by category (Home, Subscriptions, or one you add such as "Superprofit"), and each group shows what it costs per month on average.
 - **Goals**: each goal's monthly amount is set aside until the goal is reached.
 - **Spent**: money out in spending categories, plus uncategorised money out, that isn't a bill. A refund in a spending category reduces it.
 - **Never counted**: transfers between your own accounts (spotted automatically by IBAN), savings movements, transactions you mark "leave out", and accounts with **In pocket** switched off (e.g. a savings account).

@@ -12,6 +12,7 @@ export const i18n = createI18n({
       short: { day: 'numeric', month: 'short', timeZone: 'UTC' },
       day: { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' },
       month: { month: 'long', year: 'numeric', timeZone: 'UTC' },
+      monthName: { month: 'long', timeZone: 'UTC' },
       long: { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' },
     },
   },

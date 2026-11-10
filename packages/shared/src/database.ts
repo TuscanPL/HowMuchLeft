@@ -146,6 +146,9 @@ export type Database = {
           category_id: string | null
           match: string | null
           active: boolean
+          every_months: number
+          due_month: number | null
+          spread: boolean
           created_at: string
         }
         Insert: {
@@ -157,6 +160,9 @@ export type Database = {
           category_id?: string | null
           match?: string | null
           active?: boolean
+          every_months?: number
+          due_month?: number | null
+          spread?: boolean
           created_at?: string
         }
         Update: {
@@ -168,6 +174,9 @@ export type Database = {
           category_id?: string | null
           match?: string | null
           active?: boolean
+          every_months?: number
+          due_month?: number | null
+          spread?: boolean
           created_at?: string
         }
         Relationships: []

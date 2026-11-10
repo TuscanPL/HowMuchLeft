@@ -13,7 +13,7 @@ insert into auth.users (id, email) values
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-4000-a000-000000000001"}', true);
 select set_config('t.hh', (public.create_household('Test budget')).id::text, true);
-select is((select count(*)::int from public.categories), 12, 'new budget gets default categories');
+select is((select count(*)::int from public.categories), 13, 'new budget gets default categories');
 insert into public.household_invites (household_id, created_by)
 values (current_setting('t.hh')::uuid, '10000000-0000-4000-a000-000000000001');
 select set_config('t.token', (select token from public.household_invites limit 1), true);

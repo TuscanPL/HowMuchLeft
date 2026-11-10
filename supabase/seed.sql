@@ -71,13 +71,27 @@ values
   (current_setting('hml.seed_household')::uuid, 'My salary', 7200, 15, 'wynagrodzenie acme'),
   (current_setting('hml.seed_household')::uuid, 'Partner''s salary', 6400, 1, 'pensja');
 
-insert into public.bills (household_id, name, amount, due_day, match, category_id)
-select current_setting('hml.seed_household')::uuid, b.name, b.amount, b.due_day, b.match, c.id
-from (values ('Rent', 3400, 5, 'czynsz'), ('Phone & internet', 120, 20, 'orange'),
-             ('Netflix', 60, 15, 'netflix'), ('Gym', 139, 3, 'zdrofit'))
-       as b (name, amount, due_day, match)
+-- A category of our own for the side project.
+insert into public.categories (household_id, name, emoji, kind, position)
+values (current_setting('hml.seed_household')::uuid, 'Superprofit', '🚀', 'expense', 86);
+
+-- Bills, grouped by category; two of them yearly.
+insert into public.bills (household_id, name, amount, due_day, match, category_id,
+                          every_months, due_month, spread)
+select current_setting('hml.seed_household')::uuid, b.name, b.amount, b.due_day, b.match, c.id,
+       b.every_months, b.due_month, b.spread
+from (values
+  ('Rent', 3400, 5, 'czynsz', 'Home', 1, null, false),
+  ('Phone & internet', 120, 20, 'orange', 'Bills', 1, null, false),
+  ('Gym', 139, 3, 'zdrofit', 'Health', 1, null, false),
+  ('Netflix', 60, 15, 'netflix', 'Subscriptions', 1, null, false),
+  ('Spotify Duo', 30, 12, 'spotify', 'Subscriptions', 1, null, false),
+  ('iCloud+ yearly', 499, 20, 'apple.com/bill', 'Subscriptions', 12, 3, true),
+  ('Domain superprofit.pl', 120, 8, 'home.pl', 'Superprofit', 12, 6, false),
+  ('Developer', 1000, 10, 'superprofit dev', 'Superprofit', 1, null, false)
+) as b (name, amount, due_day, match, category, every_months, due_month, spread)
 join public.categories c on c.household_id = current_setting('hml.seed_household')::uuid
-                        and c.name = 'Bills';
+                        and c.name = b.category;
 
 insert into public.goals (household_id, name, emoji, target, saved, monthly_contribution)
 values (current_setting('hml.seed_household')::uuid, 'Holiday in Portugal', '🏖️', 8000, 2500, 800),

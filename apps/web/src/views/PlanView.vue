@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { parseAmount, type CategoryKind } from '@hml/shared'
-import { useHouseholdStore } from '@/stores/household'
-import { money } from '@/lib/format'
+import { BILL_INTERVALS, monthlyCost, parseAmount, type CategoryKind } from '@hml/shared'
+import { useHouseholdStore, type Bill, type Category } from '@/stores/household'
+import { isoToDate, money } from '@/lib/format'
 import BottomSheet from '@/components/BottomSheet.vue'
 import ProgressBar from '@/components/ProgressBar.vue'
 
 // Everything the pocket number is built from: expected income, bills,
 // goals, category budgets, and the "always" rules for sorting transactions.
-const { t } = useI18n()
+const { t, d } = useI18n()
 const household = useHouseholdStore()
 const cur = computed(() => household.currency)
 const pocket = computed(() => household.pocket)
@@ -33,11 +33,50 @@ const form = reactive({
   kind: 'expense' as CategoryKind,
   limit: '',
   startsMonth: true,
+  every: 1,
+  dueMonth: new Date().getMonth() + 1,
+  spread: true,
 })
 
+/** Bills per month on average: a yearly 600 zł counts as 50 zł. */
 const totalBills = computed(() =>
-  household.bills.filter((b) => b.active).reduce((s, b) => s + b.amount, 0),
+  household.bills.filter((b) => b.active).reduce((s, b) => s + monthlyCost(b), 0),
 )
+
+/** Bills grouped by their category (Subscriptions, Home, …), biggest first; ones without a category last. */
+const billGroups = computed(() => {
+  const groups = new Map<string, { category: Category | null; bills: Bill[]; monthly: number }>()
+  for (const b of household.bills) {
+    const key = b.category_id ?? ''
+    const g = groups.get(key) ?? {
+      category: (b.category_id && household.categoryById.get(b.category_id)) || null,
+      bills: [],
+      monthly: 0,
+    }
+    g.bills.push(b)
+    if (b.active) g.monthly += monthlyCost(b)
+    groups.set(key, g)
+  }
+  return [...groups.values()].sort(
+    (a, b) => Number(!a.category) - Number(!b.category) || b.monthly - a.monthly,
+  )
+})
+
+const billStatusById = computed(() => new Map(pocket.value.billStatuses.map((s) => [s.bill.id, s])))
+
+function monthName(m: number) {
+  return d(new Date(Date.UTC(2026, m - 1, 1)), 'monthName')
+}
+
+/** "on day 5", "yearly, in March", "every 3 months, next in January". */
+function billSchedule(b: Bill) {
+  if (b.every_months === 1) return t('plan.onDay', { day: b.due_day })
+  const next = billStatusById.value.get(b.id)?.nextDue
+  const when = next ? d(isoToDate(`${next}-01`), 'month') : monthName(b.due_month ?? 1)
+  return b.every_months === 12
+    ? t('plan.yearlyIn', { month: when, day: b.due_day })
+    : t('plan.everyIn', { n: b.every_months, month: when })
+}
 const totalIncome = computed(() =>
   household.incomes.filter((i) => i.active).reduce((s, i) => s + i.amount, 0),
 )
@@ -54,6 +93,11 @@ const receivedIncomes = computed(
   () => new Set(pocket.value.incomeStatuses.filter((i) => i.received).map((i) => i.income.id)),
 )
 
+const spreadPreview = computed(() => {
+  const v = parseAmount(form.amount)
+  return v ? money(monthlyCost({ amount: v, every_months: form.every }), cur.value) : '…'
+})
+
 function str(n: number | null | undefined) {
   return n == null ? '' : String(n).replace('.', ',')
 }
@@ -68,6 +112,9 @@ function open(kind: Kind, row?: Record<string, unknown>) {
     amount: str(r.amount),
     day: r.due_day ?? r.pay_day ?? 1,
     startsMonth: r.starts_month ?? true,
+    every: r.every_months ?? 1,
+    dueMonth: r.due_month ?? new Date().getMonth() + 1,
+    spread: r.spread ?? true,
     match: r.match ?? '',
     categoryId: r.category_id ?? '',
     target: str(r.target),
@@ -111,6 +158,9 @@ async function submit() {
           due_day: form.day,
           match,
           category_id: form.categoryId || null,
+          every_months: form.every,
+          due_month: form.every === 1 ? null : form.dueMonth,
+          spread: form.every === 1 ? false : form.spread,
         })
         break
       case 'goal':
@@ -232,32 +282,49 @@ const expenseCategories = computed(() => household.categories.filter((c) => c.ki
         >
       </div>
       <p class="mb-2 text-sm text-slate-500">{{ t('plan.billsHelp') }}</p>
-      <ul class="card divide-y divide-slate-100 p-0">
-        <li v-for="b in household.bills" :key="b.id" class="flex items-center gap-3 px-4 py-3">
-          <button type="button" class="min-w-0 flex-1 text-left" @click="open('bill', b)">
-            <span class="block font-medium" :class="!b.active && 'text-slate-400 line-through'">{{
-              b.name
-            }}</span>
-            <span class="block text-xs text-slate-500">
-              {{ t('plan.onDay', { day: b.due_day }) }}
-              <template v-if="paidBills.has(b.id)"> · ✓ {{ t('plan.paid') }}</template>
-              <template v-else-if="!b.match"> · {{ t('plan.noMatch') }}</template>
+      <div v-for="g in billGroups" :key="g.category?.id ?? 'none'" class="mb-3">
+        <h3 class="mb-1 flex justify-between px-1 text-sm font-medium text-slate-600">
+          <span>{{
+            g.category ? `${g.category.emoji} ${g.category.name}` : t('plan.otherBills')
+          }}</span>
+          <span class="tabular-nums" data-testid="bill-group-total">
+            {{ money(g.monthly, cur) }} / {{ t('plan.month') }}
+          </span>
+        </h3>
+        <ul class="card divide-y divide-slate-100 p-0">
+          <li v-for="b in g.bills" :key="b.id" class="flex items-center gap-3 px-4 py-3">
+            <button type="button" class="min-w-0 flex-1 text-left" @click="open('bill', b)">
+              <span class="block font-medium" :class="!b.active && 'text-slate-400 line-through'">{{
+                b.name
+              }}</span>
+              <span class="block text-xs text-slate-500">
+                {{ billSchedule(b) }}
+                <template v-if="paidBills.has(b.id)"> · ✓ {{ t('plan.paid') }}</template>
+                <template v-else-if="!b.match"> · {{ t('plan.noMatch') }}</template>
+              </span>
+            </button>
+            <span class="text-right tabular-nums">
+              {{ money(b.amount, cur) }}
+              <span v-if="b.every_months > 1" class="block text-xs text-slate-500">
+                {{
+                  b.spread
+                    ? t('plan.perMonthShort', { amount: money(monthlyCost(b), cur) })
+                    : t('plan.allAtOnce')
+                }}
+              </span>
             </span>
-          </button>
-          <span class="tabular-nums">{{ money(b.amount, cur) }}</span>
-          <input
-            type="checkbox"
-            :checked="b.active"
-            :aria-label="t('plan.active')"
-            @change="toggleActive('bills', b)"
-          />
-        </li>
-        <li class="px-4 py-2">
-          <button type="button" class="text-sm font-medium text-brand-700" @click="open('bill')">
-            + {{ t('plan.addBill') }}
-          </button>
-        </li>
-      </ul>
+            <input
+              type="checkbox"
+              :checked="b.active"
+              :aria-label="t('plan.active')"
+              @change="toggleActive('bills', b)"
+            />
+          </li>
+        </ul>
+      </div>
+      <button type="button" class="text-sm font-medium text-brand-700" @click="open('bill')">
+        + {{ t('plan.addBill') }}
+      </button>
     </section>
 
     <!-- Goals -->
@@ -390,6 +457,40 @@ const expenseCategories = computed(() => household.categories.filter((c) => c.ki
               </select>
             </div>
           </div>
+          <template v-if="editing === 'bill'">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="label" for="f-every">{{ t('plan.howOften') }}</label>
+                <select id="f-every" v-model.number="form.every" class="input">
+                  <option v-for="n in BILL_INTERVALS" :key="n" :value="n">
+                    {{ t(`plan.every.${n}`) }}
+                  </option>
+                </select>
+              </div>
+              <div v-if="form.every > 1">
+                <label class="label" for="f-month">{{
+                  form.every === 12 ? t('plan.paidIn') : t('plan.nextIn')
+                }}</label>
+                <select id="f-month" v-model.number="form.dueMonth" class="input">
+                  <option v-for="m in 12" :key="m" :value="m">{{ monthName(m) }}</option>
+                </select>
+              </div>
+            </div>
+            <fieldset v-if="form.every > 1" class="space-y-2 text-sm">
+              <legend class="label">{{ t('plan.setAside') }}</legend>
+              <label class="flex items-start gap-2">
+                <input v-model="form.spread" type="radio" :value="true" class="mt-1" />
+                <span>
+                  {{ t('plan.spread', { amount: spreadPreview }) }}
+                  <span class="block text-xs text-slate-500">{{ t('plan.spreadHelp') }}</span>
+                </span>
+              </label>
+              <label class="flex items-start gap-2">
+                <input v-model="form.spread" type="radio" :value="false" class="mt-1" />
+                <span>{{ t('plan.atOnce', { month: monthName(form.dueMonth) }) }}</span>
+              </label>
+            </fieldset>
+          </template>
           <div v-if="editing === 'bill'">
             <label class="label" for="f-cat">{{ t('activity.category') }}</label>
             <select id="f-cat" v-model="form.categoryId" class="input">

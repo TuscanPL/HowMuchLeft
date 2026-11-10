@@ -48,7 +48,7 @@ const spendingCategories = computed(() =>
     .sort((a, b) => b.spent - a.spent),
 )
 
-const upcomingBills = computed(() => pocket.value.billStatuses.filter((b) => !b.paid))
+const upcomingBills = computed(() => pocket.value.billStatuses.filter((b) => b.due && !b.paid))
 </script>
 
 <template>
@@ -247,9 +247,9 @@ const upcomingBills = computed(() => pocket.value.billStatuses.filter((b) => !b.
         >
           <span>
             {{ b.bill.name }}
-            <span class="text-slate-400">· {{ d(isoToDate(b.due), 'short') }}</span>
+            <span class="text-slate-400">· {{ d(isoToDate(b.due!), 'short') }}</span>
           </span>
-          <span class="tabular-nums">{{ money(b.amount, cur) }}</span>
+          <span class="tabular-nums">{{ money(b.bill.amount, cur) }}</span>
         </li>
       </ul>
     </section>

@@ -195,4 +195,89 @@ describe('computePocket', () => {
     )
     expect(p.nextInflux).toBeNull()
   })
+
+  describe('yearly and quarterly bills', () => {
+    const month = { start: '2026-11-01', end: '2026-11-30', month: '2026-11' }
+    const bills = [
+      { id: 'rent', name: 'Rent', amount: 3000, due_day: 5, active: true },
+      // Domain, renewed every March: nothing to set aside in November.
+      {
+        id: 'domain',
+        name: 'Domain',
+        amount: 120,
+        due_day: 10,
+        active: true,
+        every_months: 12,
+        due_month: 3,
+      },
+      // Yearly plan renewed in November, all at once.
+      {
+        id: 'icloud',
+        name: 'iCloud yearly',
+        amount: 600,
+        due_day: 20,
+        active: true,
+        every_months: 12,
+        due_month: 11,
+      },
+      // Insurance, spread: 1/12 every month, paid in full in January.
+      {
+        id: 'oc',
+        name: 'Car insurance',
+        amount: 1200,
+        due_day: 15,
+        active: true,
+        every_months: 12,
+        due_month: 1,
+        spread: true,
+      },
+    ]
+
+    it('sets aside only what this month needs', () => {
+      const p = computePocket(base([], { period: month, bills, goals: [] }))
+      const byId = Object.fromEntries(p.billStatuses.map((b) => [b.bill.id, b]))
+      expect(byId.domain).toMatchObject({
+        dueThisMonth: false,
+        due: null,
+        nextDue: '2027-03',
+        amount: 0,
+      })
+      expect(byId.icloud).toMatchObject({ dueThisMonth: true, due: '2026-11-20', amount: 600 })
+      expect(byId.oc).toMatchObject({ dueThisMonth: false, nextDue: '2027-01', amount: 100 })
+      expect(p.bills).toBe(3000 + 600 + 100)
+      expect(p.billsUnpaid).toBe(3600)
+    })
+
+    it('a spread bill keeps setting aside its share when it is paid, and the payment is not spending', () => {
+      const january = { start: '2027-01-01', end: '2027-01-31', month: '2027-01' }
+      const p = computePocket(
+        base([tx('2027-01-15', -1250, { bill_id: 'oc' })], {
+          period: january,
+          today: '2027-01-20',
+          bills,
+          goals: [],
+        }),
+      )
+      const oc = p.billStatuses.find((b) => b.bill.id === 'oc')!
+      expect(oc).toMatchObject({ dueThisMonth: true, paid: true, paidAmount: 1250, amount: 100 })
+      expect(p.spent).toBe(0)
+    })
+
+    it('counts the full cash of a spread bill due before the next salary', () => {
+      const january = { start: '2027-01-01', end: '2027-01-31', month: '2027-01' }
+      const p = computePocket(
+        base([tx('2027-01-01', 6000, { income_id: 'me' })], {
+          period: january,
+          today: '2027-01-02',
+          bills: [bills[3]!],
+          goals: [],
+          incomes: [
+            { id: 'me', name: 'Me', amount: 6000, pay_day: 1, active: true },
+            { id: 'her', name: 'Her', amount: 5000, pay_day: 20, active: true },
+          ],
+        }),
+      )
+      expect(p.nextInflux?.available).toBe(6000 - 1200)
+    })
+  })
 })
