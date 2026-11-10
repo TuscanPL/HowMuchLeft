@@ -49,7 +49,7 @@ The pocket screen also shows the amount per day for the days left, bills still t
 3. If it contains an income's match text, it's that income.
 4. Otherwise the longest matching rule decides ("biedronka" → Groceries).
 
-When you pick a category on a transaction, tick **Always use this category** to make a rule from it. The rule is applied to older transactions too. A transaction you set by hand is never re-sorted, unless you tap **Sort automatically again**. Cash spending can be added by hand (**Activity → + Cash**).
+A payment that is really a recurring cost can become a bill straight from **Activity**: open it and tap **Make this a bill**. The bill form opens filled in from the payment (name, amount, day, bank text, category), and it shows how many other payments contain the same text. Saving links this payment and those others to the new bill. When you pick a category on a transaction, tick **Always use this category** to make a rule from it. The rule is applied to older transactions too. A transaction you set by hand is never re-sorted, unless you tap **Sort automatically again**. Cash spending can be added by hand (**Activity → + Cash**).
 
 ## Setup
 

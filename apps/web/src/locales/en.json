@@ -125,7 +125,10 @@
       "in": "Money in"
     },
     "what": "What for",
-    "account": "Account"
+    "account": "Account",
+    "makeBill": "Make this a bill",
+    "newBill": "New bill",
+    "newBillHelp": "Filled in from this payment. Choose how often it repeats; payments with the same bank text are linked to the bill from now on."
   },
   "plan": {
     "title": "Plan",
@@ -196,7 +199,8 @@
     "setAside": "Set money aside",
     "spread": "A bit every month ({amount})",
     "spreadHelp": "So the month it renews isn't a shock.",
-    "atOnce": "All in {month}, when it's paid"
+    "atOnce": "All in {month}, when it's paid",
+    "matchFound": "No other payments contain this text yet. | 1 other payment contains this text; it will be linked too. | {n} other payments contain this text; they will be linked too."
   },
   "kinds": {
     "expense": "Spending",

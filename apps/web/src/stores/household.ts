@@ -363,16 +363,26 @@ export const useHouseholdStore = defineStore('household', () => {
   async function save<T extends 'categories' | 'bills' | 'incomes' | 'goals' | 'rules'>(
     table: T,
     row: Partial<Tables<T>> & { id?: string },
-  ) {
+  ): Promise<Tables<T>> {
     const { id, ...rest } = row as { id?: string } & Record<string, unknown>
     // One code path for five tables; each table's own types are checked at the call sites.
     const q = supabase.from(table as 'bills')
-    if (id) {
-      check(await q.update(rest as never).eq('id', id))
-    } else {
-      check(await q.insert({ ...rest, household_id: household.value!.id } as never))
-    }
+    const saved = id
+      ? check(
+          await q
+            .update(rest as never)
+            .eq('id', id)
+            .select()
+            .single(),
+        )
+      : check(
+          await q
+            .insert({ ...rest, household_id: household.value!.id } as never)
+            .select()
+            .single(),
+        )
     await loadTable(table)
+    return saved as unknown as Tables<T>
   }
 
   async function remove(

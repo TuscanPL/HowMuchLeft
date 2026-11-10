@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { BILL_INTERVALS, monthlyCost, parseAmount, type CategoryKind } from '@hml/shared'
+import { monthlyCost, parseAmount, type CategoryKind } from '@hml/shared'
 import { useHouseholdStore, type Bill, type Category } from '@/stores/household'
 import { isoToDate, money } from '@/lib/format'
 import BottomSheet from '@/components/BottomSheet.vue'
+import BillForm from '@/components/BillForm.vue'
 import ProgressBar from '@/components/ProgressBar.vue'
 
 // Everything the pocket number is built from: expected income, bills,
@@ -33,10 +34,9 @@ const form = reactive({
   kind: 'expense' as CategoryKind,
   limit: '',
   startsMonth: true,
-  every: 1,
-  dueMonth: new Date().getMonth() + 1,
-  spread: true,
 })
+/** The bill being edited (the bill form is its own component). */
+const editingBill = ref<Bill | null>(null)
 
 /** Bills per month on average: a yearly 600 zł counts as 50 zł. */
 const totalBills = computed(() =>
@@ -93,11 +93,6 @@ const receivedIncomes = computed(
   () => new Set(pocket.value.incomeStatuses.filter((i) => i.received).map((i) => i.income.id)),
 )
 
-const spreadPreview = computed(() => {
-  const v = parseAmount(form.amount)
-  return v ? money(monthlyCost({ amount: v, every_months: form.every }), cur.value) : '…'
-})
-
 function str(n: number | null | undefined) {
   return n == null ? '' : String(n).replace('.', ',')
 }
@@ -112,9 +107,6 @@ function open(kind: Kind, row?: Record<string, unknown>) {
     amount: str(r.amount),
     day: r.due_day ?? r.pay_day ?? 1,
     startsMonth: r.starts_month ?? true,
-    every: r.every_months ?? 1,
-    dueMonth: r.due_month ?? new Date().getMonth() + 1,
-    spread: r.spread ?? true,
     match: r.match ?? '',
     categoryId: r.category_id ?? '',
     target: str(r.target),
@@ -124,6 +116,7 @@ function open(kind: Kind, row?: Record<string, unknown>) {
     kind: r.kind ?? 'expense',
     limit: str(r.monthly_limit),
   })
+  editingBill.value = kind === 'bill' ? ((row as Bill | undefined) ?? null) : null
   editing.value = kind
 }
 
@@ -148,19 +141,6 @@ async function submit() {
           pay_day: form.day,
           match,
           starts_month: form.startsMonth,
-        })
-        break
-      case 'bill':
-        await household.save('bills', {
-          id,
-          name: form.name.trim(),
-          amount: amountOrThrow(form.amount),
-          due_day: form.day,
-          match,
-          category_id: form.categoryId || null,
-          every_months: form.every,
-          due_month: form.every === 1 ? null : form.dueMonth,
-          spread: form.every === 1 ? false : form.spread,
         })
         break
       case 'goal':
@@ -228,8 +208,6 @@ async function remove() {
 async function toggleActive(table: 'bills' | 'incomes', row: { id: string; active: boolean }) {
   await household.save(table, { id: row.id, active: !row.active })
 }
-
-const expenseCategories = computed(() => household.categories.filter((c) => c.kind === 'expense'))
 </script>
 
 <template>
@@ -422,7 +400,8 @@ const expenseCategories = computed(() => household.categories.filter((c) => c.ki
     </section>
 
     <BottomSheet v-if="editing" :title="t(`plan.edit.${editing}`)" @close="editing = null">
-      <form class="space-y-4" @submit.prevent="submit">
+      <BillForm v-if="editing === 'bill'" :bill="editingBill" @done="editing = null" />
+      <form v-else class="space-y-4" @submit.prevent="submit">
         <template v-if="editing !== 'rule'">
           <div class="flex gap-3">
             <div v-if="editing === 'goal' || editing === 'category'" class="w-20">
@@ -436,7 +415,7 @@ const expenseCategories = computed(() => household.categories.filter((c) => c.ki
           </div>
         </template>
 
-        <template v-if="editing === 'income' || editing === 'bill'">
+        <template v-if="editing === 'income'">
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="label" for="f-amount">{{ t('common.amount') }}</label>
@@ -449,56 +428,11 @@ const expenseCategories = computed(() => household.categories.filter((c) => c.ki
               />
             </div>
             <div>
-              <label class="label" for="f-day">{{
-                editing === 'bill' ? t('plan.dueDay') : t('plan.payDay')
-              }}</label>
+              <label class="label" for="f-day">{{ t('plan.payDay') }}</label>
               <select id="f-day" v-model.number="form.day" class="input">
                 <option v-for="d in 31" :key="d" :value="d">{{ d }}</option>
               </select>
             </div>
-          </div>
-          <template v-if="editing === 'bill'">
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="label" for="f-every">{{ t('plan.howOften') }}</label>
-                <select id="f-every" v-model.number="form.every" class="input">
-                  <option v-for="n in BILL_INTERVALS" :key="n" :value="n">
-                    {{ t(`plan.every.${n}`) }}
-                  </option>
-                </select>
-              </div>
-              <div v-if="form.every > 1">
-                <label class="label" for="f-month">{{
-                  form.every === 12 ? t('plan.paidIn') : t('plan.nextIn')
-                }}</label>
-                <select id="f-month" v-model.number="form.dueMonth" class="input">
-                  <option v-for="m in 12" :key="m" :value="m">{{ monthName(m) }}</option>
-                </select>
-              </div>
-            </div>
-            <fieldset v-if="form.every > 1" class="space-y-2 text-sm">
-              <legend class="label">{{ t('plan.setAside') }}</legend>
-              <label class="flex items-start gap-2">
-                <input v-model="form.spread" type="radio" :value="true" class="mt-1" />
-                <span>
-                  {{ t('plan.spread', { amount: spreadPreview }) }}
-                  <span class="block text-xs text-slate-500">{{ t('plan.spreadHelp') }}</span>
-                </span>
-              </label>
-              <label class="flex items-start gap-2">
-                <input v-model="form.spread" type="radio" :value="false" class="mt-1" />
-                <span>{{ t('plan.atOnce', { month: monthName(form.dueMonth) }) }}</span>
-              </label>
-            </fieldset>
-          </template>
-          <div v-if="editing === 'bill'">
-            <label class="label" for="f-cat">{{ t('activity.category') }}</label>
-            <select id="f-cat" v-model="form.categoryId" class="input">
-              <option value="">–</option>
-              <option v-for="c in expenseCategories" :key="c.id" :value="c.id">
-                {{ c.emoji }} {{ c.name }}
-              </option>
-            </select>
           </div>
           <div>
             <label class="label" for="f-match">{{ t('plan.match') }}</label>
@@ -507,7 +441,7 @@ const expenseCategories = computed(() => household.categories.filter((c) => c.ki
               v-model="form.match"
               minlength="3"
               class="input"
-              :placeholder="editing === 'bill' ? 'orange, netflix…' : 'wynagrodzenie, acme…'"
+              :placeholder="'wynagrodzenie, acme…'"
             />
             <p class="mt-1 text-xs text-slate-500">{{ t('plan.matchHelp') }}</p>
           </div>
