@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { budgetPeriod, dayInMonth, dueDateInPeriod, periodStarts, todayIn } from './dates.ts'
+import {
+  budgetPeriod,
+  dayInMonth,
+  dueDateInPeriod,
+  onePerMonth,
+  paydayNear,
+  periodStarts,
+  todayIn,
+} from './dates.ts'
 
 describe('budgetPeriod', () => {
   it('is the calendar month when months start on the 1st', () => {
@@ -56,6 +64,27 @@ describe('paydays', () => {
       '2027-01-10',
       '2027-02-10',
     ])
+  })
+
+  it('two presses a couple of days apart make one month, from the first', () => {
+    const both = ['2026-11-08', '2026-11-10']
+    expect(budgetPeriod('2026-11-20', 10, 0, both)).toEqual({
+      start: '2026-11-08',
+      end: '2026-12-09',
+    })
+    expect(budgetPeriod('2026-11-20', 10, -1, both)).toEqual({
+      start: '2026-10-10',
+      end: '2026-11-07',
+    })
+    expect(onePerMonth(['2026-12-09', '2026-11-10', '2026-11-08'])).toEqual([
+      '2026-11-08',
+      '2026-12-09',
+    ])
+  })
+
+  it('finds the payday already marked for this month', () => {
+    expect(paydayNear(['2026-10-09', '2026-11-08'], '2026-11-10')).toBe('2026-11-08')
+    expect(paydayNear(['2026-10-09'], '2026-11-10')).toBeUndefined()
   })
 
   it('works across the year with offsets', () => {

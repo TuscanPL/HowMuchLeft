@@ -484,6 +484,10 @@ export type Database = {
           already_member: boolean
         }[]
       }
+      mark_payday: {
+        Args: { p_household_id: string; p_date: string; p_move?: boolean }
+        Returns: { starts_on: string; created_by: string | null; created: boolean }[]
+      }
       redeem_invite: { Args: { p_token: string }; Returns: string }
       recategorize: { Args: { p_household_id: string; p_since?: string }; Returns: number }
       is_household_member: { Args: { p_household_id: string }; Returns: boolean }

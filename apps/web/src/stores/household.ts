@@ -47,7 +47,8 @@ export const useHouseholdStore = defineStore('household', () => {
   const connections = ref<Connection[]>([])
   const transactions = shallowRef<Transaction[]>([])
   /** Days a budget month started because someone pressed "Payday" (salary early or late). */
-  const paydays = ref<string[]>([])
+  const paydayRows = ref<{ starts_on: string; created_by: string | null }[]>([])
+  const paydays = computed(() => paydayRows.value.map((p) => p.starts_on))
   const loadedFrom = ref<string | null>(null)
   const today = ref(todayIn())
   let loading: Promise<void> | null = null
@@ -132,11 +133,11 @@ export const useHouseholdStore = defineStore('household', () => {
     const rows = check(
       await supabase
         .from('paydays')
-        .select('starts_on')
+        .select('starts_on, created_by')
         .eq('household_id', household.value!.id)
         .order('starts_on'),
     )
-    paydays.value = rows.map((r) => r.starts_on)
+    paydayRows.value = rows
   }
 
   async function loadMembers() {
@@ -278,7 +279,7 @@ export const useHouseholdStore = defineStore('household', () => {
     accounts.value = []
     connections.value = []
     transactions.value = []
-    paydays.value = []
+    paydayRows.value = []
   }
 
   async function reload() {
@@ -410,14 +411,27 @@ export const useHouseholdStore = defineStore('household', () => {
   }
 
   /** Re-runs bills, incomes and rules over every transaction nobody edited by hand. */
-  /** "Payday!": the new budget month starts on this day instead of the usual one. */
-  async function markPayday(date: string) {
-    check(
-      await supabase
-        .from('paydays')
-        .upsert({ household_id: household.value!.id, starts_on: date }, { ignoreDuplicates: true }),
+  /**
+   * "Payday!": the new budget month starts on this day instead of the usual one.
+   * If a payday is already marked for this month (the other person pressed it),
+   * nothing changes unless `move` is set; the result says which day stands.
+   */
+  async function markPayday(date: string, move = false) {
+    const rows = check(
+      await supabase.rpc('mark_payday', {
+        p_household_id: household.value!.id,
+        p_date: date,
+        p_move: move,
+      }),
     )
     await loadPaydays()
+    return rows[0]!
+  }
+
+  /** Who pressed the payday that started this day's month. */
+  function paydayBy(date: string): string | null {
+    const row = paydayRows.value.find((p) => p.starts_on === date)
+    return members.value.find((m) => m.user_id === row?.created_by)?.profile?.display_name ?? null
   }
 
   async function unmarkPayday(date: string) {
@@ -476,6 +490,7 @@ export const useHouseholdStore = defineStore('household', () => {
     recategorize,
     paydays,
     markPayday,
+    paydayBy,
     unmarkPayday,
   }
 })

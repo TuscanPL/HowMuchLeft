@@ -252,8 +252,16 @@
     "date": "Salary arrived on",
     "preview": "This month will run {start} – {end}, instead of starting on {usual}.",
     "confirm": "Start the new month",
-    "marked": "Paydays you marked",
+    "marked": "Recent paydays",
     "undo": "Undo",
-    "startedOn": "started on payday"
+    "startedOn": "started on payday",
+    "already": "This month already started on {date}, when {by} pressed Payday. Pressing again won't start another month.",
+    "alreadyThatDay": "Already done: {by} pressed Payday for this day.",
+    "keep": "Keep {date}",
+    "move": "Move the start to {date}",
+    "movePreview": "Moving it makes the month run {start} – {end}.",
+    "ok": "OK",
+    "you": "you",
+    "startedOnBy": "started on payday by {name}"
   }
 }

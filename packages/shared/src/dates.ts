@@ -62,6 +62,7 @@ export function periodStarts(
 ): IsoDate[] {
   const f = fromIso(from)
   const t = fromIso(to)
+  paydays = onePerMonth(paydays)
   const starts = new Set<IsoDate>(paydays)
   const months = (t.getUTCFullYear() - f.getUTCFullYear()) * 12 + t.getUTCMonth() - f.getUTCMonth()
   for (let m = -1; m <= months + 1; m++) {
@@ -70,6 +71,27 @@ export function periodStarts(
     if (!replaced) starts.add(usual)
   }
   return [...starts].sort()
+}
+
+/**
+ * Keeps one payday per budget month: of paydays within 15 days of each other,
+ * the earliest wins. The database already refuses a second one (mark_payday);
+ * this guards against two presses that slipped through anyway.
+ */
+export function onePerMonth(paydays: readonly IsoDate[]): IsoDate[] {
+  const kept: IsoDate[] = []
+  for (const p of [...new Set(paydays)].sort()) {
+    const last = kept.at(-1)
+    if (!last || daysBetween(last, p) > PAYDAY_WINDOW_DAYS) kept.push(p)
+  }
+  return kept
+}
+
+/** The payday already marked within 15 days of `date`, if any. */
+export function paydayNear(paydays: readonly IsoDate[], date: IsoDate): IsoDate | undefined {
+  return paydays
+    .filter((p) => Math.abs(daysBetween(p, date)) <= PAYDAY_WINDOW_DAYS)
+    .sort((a, b) => Math.abs(daysBetween(a, date)) - Math.abs(daysBetween(b, date)))[0]
 }
 
 /**

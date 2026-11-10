@@ -63,7 +63,13 @@ const pendingIncome = computed(() => pocket.value.incomeStatuses.filter((i) => !
           {{ d(isoToDate(pocket.period.start), 'short') }} –
           {{ d(isoToDate(pocket.period.end), 'short') }}
         </p>
-        <p v-if="startedOnPayday" class="text-xs text-slate-400">{{ t('payday.startedOn') }}</p>
+        <p v-if="startedOnPayday" class="text-xs text-slate-400">
+          {{
+            household.paydayBy(pocket.period.start)
+              ? t('payday.startedOnBy', { name: household.paydayBy(pocket.period.start) })
+              : t('payday.startedOn')
+          }}
+        </p>
       </div>
       <button
         type="button"
