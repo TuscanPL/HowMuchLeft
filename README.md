@@ -16,7 +16,7 @@ supabase/           migrations, seed, pgTAP tests, edge functions (bank, bank-sy
 
 ## How the number is worked out
 
-For the current budget month (it starts on payday; set the day in Settings):
+For the current budget month (it starts on your usual payday; set the day in Settings):
 
 ```
 in my pocket = income − bills − goals − spent so far
@@ -27,6 +27,8 @@ in my pocket = income − bills − goals − spent so far
 - **Goals**: each goal's monthly amount is set aside until the goal is reached.
 - **Spent**: money out in spending categories, plus uncategorised money out, that isn't a bill. A refund in a spending category reduces it.
 - **Never counted**: transfers between your own accounts (spotted automatically by IBAN), savings movements, transactions you mark "leave out", and accounts with **In pocket** switched off (e.g. a savings account).
+
+**Payday early or late?** Press **Payday! Start the new month** on the Pocket screen on the day the salary arrives (or pick the date). The new month starts that day, and it replaces the usual start day if that falls within 15 days of it. The month before stretches or shrinks to meet it. Until you press it, the month rolls over on the usual day as before. A pressed payday can be undone from the same sheet, and both of you see it.
 
 The pocket screen also shows the amount per day for the days left, bills still to pay, and each category against its optional budget. Arrows step back through past months.
 

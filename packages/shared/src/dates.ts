@@ -46,24 +46,68 @@ export interface Period {
   end: IsoDate
 }
 
+/** How close (in days) a pressed "payday" must be to the usual start day to replace it. */
+export const PAYDAY_WINDOW_DAYS = 15
+
 /**
- * The budget month containing `today` when months start on `startDay`
- * (1–28; e.g. 10 for a salary on the 10th). `offset` moves whole months: -1 is the previous one.
+ * Every day a budget month starts, from `from` to `to` (inclusive, roughly):
+ * the usual `startDay` of each month, except where a payday was marked within
+ * 15 days of it (salary early or late), in which case the marked day wins.
  */
-export function budgetPeriod(today: IsoDate, startDay: number, offset = 0): Period {
-  const t = fromIso(today)
-  let month0 = t.getUTCMonth()
-  if (t.getUTCDate() < startDay) month0 -= 1
-  month0 += offset
-  const year = t.getUTCFullYear()
-  const start = dayInMonth(year, month0, startDay)
-  const end = addDays(dayInMonth(year, month0 + 1, startDay), -1)
-  return { start, end }
+export function periodStarts(
+  startDay: number,
+  paydays: readonly IsoDate[],
+  from: IsoDate,
+  to: IsoDate,
+): IsoDate[] {
+  const f = fromIso(from)
+  const t = fromIso(to)
+  const starts = new Set<IsoDate>(paydays)
+  const months = (t.getUTCFullYear() - f.getUTCFullYear()) * 12 + t.getUTCMonth() - f.getUTCMonth()
+  for (let m = -1; m <= months + 1; m++) {
+    const usual = dayInMonth(f.getUTCFullYear(), f.getUTCMonth() + m, startDay)
+    const replaced = paydays.some((p) => Math.abs(daysBetween(usual, p)) <= PAYDAY_WINDOW_DAYS)
+    if (!replaced) starts.add(usual)
+  }
+  return [...starts].sort()
 }
 
-/** When something due on `day` of the month falls inside the period (at most once, as periods are a month long). */
+/**
+ * The budget month containing `today` when months start on `startDay`
+ * (1–28; e.g. 10 for a salary on the 10th), moved by any paydays marked by hand.
+ * `offset` moves whole months: -1 is the previous one.
+ */
+export function budgetPeriod(
+  today: IsoDate,
+  startDay: number,
+  offset = 0,
+  paydays: readonly IsoDate[] = [],
+): Period {
+  const span = Math.abs(offset) + 2
+  const t = fromIso(today)
+  const from = dayInMonth(t.getUTCFullYear(), t.getUTCMonth() - span, 1)
+  const to = dayInMonth(t.getUTCFullYear(), t.getUTCMonth() + span, 1)
+  const starts = periodStarts(startDay, paydays, from, to)
+  let i = -1
+  for (let k = 0; k < starts.length; k++) if (starts[k]! <= today) i = k
+  const start = starts[i + offset]!
+  const next = starts[i + offset + 1]!
+  return { start, end: addDays(next, -1) }
+}
+
+/**
+ * When something due on `day` of the month falls in the period. A period moved
+ * by an early or late payday may miss the day; then it's whichever end is nearer.
+ */
 export function dueDateInPeriod(period: Period, day: number): IsoDate {
   const s = fromIso(period.start)
-  const first = dayInMonth(s.getUTCFullYear(), s.getUTCMonth(), day)
-  return first >= period.start ? first : dayInMonth(s.getUTCFullYear(), s.getUTCMonth() + 1, day)
+  for (let m = 0; m <= 1; m++) {
+    const d = dayInMonth(s.getUTCFullYear(), s.getUTCMonth() + m, day)
+    if (d >= period.start && d <= period.end) return d
+  }
+  const before = dayInMonth(s.getUTCFullYear(), s.getUTCMonth(), day)
+  const after = dayInMonth(s.getUTCFullYear(), s.getUTCMonth() + 1, day)
+  return daysBetween(before, period.start) < daysBetween(period.end, after)
+    ? period.start
+    : period.end
 }

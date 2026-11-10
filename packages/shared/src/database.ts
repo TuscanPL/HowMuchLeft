@@ -322,6 +322,27 @@ export type Database = {
         }
         Relationships: []
       }
+      paydays: {
+        Row: {
+          household_id: string
+          starts_on: string
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          household_id: string
+          starts_on: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          household_id?: string
+          starts_on?: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       accounts: {
         Row: {
           id: string

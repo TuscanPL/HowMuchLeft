@@ -46,6 +46,8 @@ export const useHouseholdStore = defineStore('household', () => {
   const accounts = ref<Account[]>([])
   const connections = ref<Connection[]>([])
   const transactions = shallowRef<Transaction[]>([])
+  /** Days a budget month started because someone pressed "Payday" (salary early or late). */
+  const paydays = ref<string[]>([])
   const loadedFrom = ref<string | null>(null)
   const today = ref(todayIn())
   let loading: Promise<void> | null = null
@@ -59,7 +61,7 @@ export const useHouseholdStore = defineStore('household', () => {
   const incomeById = computed(() => new Map(incomes.value.map((i) => [i.id, i])))
 
   function period(offset = 0): Period {
-    return budgetPeriod(today.value, household.value?.period_start_day ?? 1, offset)
+    return budgetPeriod(today.value, household.value?.period_start_day ?? 1, offset, paydays.value)
   }
 
   function pocketFor(offset = 0): Pocket {
@@ -110,6 +112,8 @@ export const useHouseholdStore = defineStore('household', () => {
       stopRealtime()
       return
     }
+    // Paydays first: they decide which months of transactions to load.
+    await loadPaydays()
     await Promise.all([
       loadMembers(),
       loadTable('categories'),
@@ -122,6 +126,17 @@ export const useHouseholdStore = defineStore('household', () => {
       loadTransactions(),
     ])
     startRealtime()
+  }
+
+  async function loadPaydays() {
+    const rows = check(
+      await supabase
+        .from('paydays')
+        .select('starts_on')
+        .eq('household_id', household.value!.id)
+        .order('starts_on'),
+    )
+    paydays.value = rows.map((r) => r.starts_on)
   }
 
   async function loadMembers() {
@@ -226,6 +241,9 @@ export const useHouseholdStore = defineStore('household', () => {
         scheduleReload(table, () => loadTable(table)),
       )
     }
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'paydays', filter }, () =>
+      scheduleReload('paydays', loadPaydays),
+    )
     channel.on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'bank_connections', filter },
@@ -260,6 +278,7 @@ export const useHouseholdStore = defineStore('household', () => {
     accounts.value = []
     connections.value = []
     transactions.value = []
+    paydays.value = []
   }
 
   async function reload() {
@@ -391,6 +410,27 @@ export const useHouseholdStore = defineStore('household', () => {
   }
 
   /** Re-runs bills, incomes and rules over every transaction nobody edited by hand. */
+  /** "Payday!": the new budget month starts on this day instead of the usual one. */
+  async function markPayday(date: string) {
+    check(
+      await supabase
+        .from('paydays')
+        .upsert({ household_id: household.value!.id, starts_on: date }, { ignoreDuplicates: true }),
+    )
+    await loadPaydays()
+  }
+
+  async function unmarkPayday(date: string) {
+    check(
+      await supabase
+        .from('paydays')
+        .delete()
+        .eq('household_id', household.value!.id)
+        .eq('starts_on', date),
+    )
+    await loadPaydays()
+  }
+
   async function recategorize() {
     check(await supabase.rpc('recategorize', { p_household_id: household.value!.id }))
     await loadTransactions(loadedFrom.value ?? undefined)
@@ -434,5 +474,8 @@ export const useHouseholdStore = defineStore('household', () => {
     addManualTransaction,
     deleteTransaction,
     recategorize,
+    paydays,
+    markPayday,
+    unmarkPayday,
   }
 })

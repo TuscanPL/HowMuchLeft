@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useHouseholdStore } from '@/stores/household'
 import { isoToDate, money, moneyRound } from '@/lib/format'
 import ProgressBar from '@/components/ProgressBar.vue'
+import PaydaySheet from '@/components/PaydaySheet.vue'
 
 const { t, d } = useI18n()
 const household = useHouseholdStore()
@@ -14,6 +15,9 @@ const offset = ref(0)
 const pocket = computed(() => household.pocketFor(offset.value))
 const cur = computed(() => household.currency)
 const isCurrent = computed(() => offset.value === 0)
+const paydayOpen = ref(false)
+/** This month began with a "Payday" press (so it can be undone). */
+const startedOnPayday = computed(() => household.paydays.includes(pocket.value.period.start))
 
 const lastSync = computed(() => {
   const times = household.connections
@@ -55,10 +59,11 @@ const pendingIncome = computed(() => pocket.value.incomeStatuses.filter((i) => !
         ‹
       </button>
       <div class="text-center">
-        <p class="text-sm font-medium text-slate-500">
+        <p class="text-sm font-medium text-slate-500" data-testid="period">
           {{ d(isoToDate(pocket.period.start), 'short') }} –
           {{ d(isoToDate(pocket.period.end), 'short') }}
         </p>
+        <p v-if="startedOnPayday" class="text-xs text-slate-400">{{ t('payday.startedOn') }}</p>
       </div>
       <button
         type="button"
@@ -91,6 +96,16 @@ const pendingIncome = computed(() => pocket.value.incomeStatuses.filter((i) => !
         }}
       </p>
     </section>
+
+    <button
+      v-if="isCurrent"
+      type="button"
+      class="mt-3 w-full rounded-xl border border-brand-100 bg-brand-50 py-2 text-sm font-semibold text-brand-800"
+      data-testid="payday"
+      @click="paydayOpen = true"
+    >
+      💸 {{ t('payday.button') }}
+    </button>
 
     <p
       v-if="needsAttention"
@@ -208,5 +223,6 @@ const pendingIncome = computed(() => pocket.value.incomeStatuses.filter((i) => !
         </li>
       </ul>
     </section>
+    <PaydaySheet v-if="paydayOpen" @close="paydayOpen = false" />
   </main>
 </template>

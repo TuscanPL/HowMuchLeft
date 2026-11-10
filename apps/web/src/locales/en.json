@@ -222,7 +222,7 @@
     "title": "Settings",
     "household": "Budget",
     "startDay": "Budget month starts on day",
-    "startDayHelp": "Set it to your payday, e.g. 10 if the salary comes on the 10th.",
+    "startDayHelp": "Your usual payday, e.g. 10 if the salary comes on the 10th. When it comes early or late, press Payday on the Pocket screen.",
     "members": "Who's in",
     "you": "you",
     "invitesHelp": "An invite link lets one person join and expires after 7 days.",
@@ -244,5 +244,16 @@
     "updateNow": "Update to the new version",
     "current": "You're on the latest version.",
     "unavailable": "Couldn't check right now. Updates are checked in the installed or opened app when you're online."
+  },
+  "payday": {
+    "button": "Payday! Start the new month",
+    "title": "Payday",
+    "intro": "Salary came early or late? Start the new budget month on the day it arrived. Bills, goals and budgets reset from that day.",
+    "date": "Salary arrived on",
+    "preview": "This month will run {start} – {end}, instead of starting on {usual}.",
+    "confirm": "Start the new month",
+    "marked": "Paydays you marked",
+    "undo": "Undo",
+    "startedOn": "started on payday"
   }
 }
