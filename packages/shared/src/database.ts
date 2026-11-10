@@ -181,6 +181,7 @@ export type Database = {
           pay_day: number
           match: string | null
           active: boolean
+          starts_month: boolean
           created_at: string
         }
         Insert: {
@@ -191,6 +192,7 @@ export type Database = {
           pay_day?: number
           match?: string | null
           active?: boolean
+          starts_month?: boolean
           created_at?: string
         }
         Update: {
@@ -201,6 +203,7 @@ export type Database = {
           pay_day?: number
           match?: string | null
           active?: boolean
+          starts_month?: boolean
           created_at?: string
         }
         Relationships: []

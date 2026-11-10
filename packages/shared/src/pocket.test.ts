@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computePocket, type PocketInput, type PocketTransaction } from './pocket.ts'
+import { computePocket, round2, type PocketInput, type PocketTransaction } from './pocket.ts'
 
 const categories: PocketInput['categories'] = [
   { id: 'food', name: 'Groceries', emoji: '🛒', kind: 'expense', monthly_limit: 1000 },
@@ -132,5 +132,67 @@ describe('computePocket', () => {
     expect(p.inPocket).toBe(-650)
     expect(p.daysLeft).toBe(1)
     expect(p.perDay).toBe(-650)
+  })
+
+  it('shows what is available until the second salary comes', () => {
+    // Her salary (day 1) is in, mine (day 28) is still to come; rent paid, phone due on the 20th.
+    const p = computePocket(
+      base([
+        tx('2026-11-01', 5000, { income_id: 'her', category_id: 'inc' }),
+        tx('2026-11-05', -3000, { bill_id: 'rent' }),
+        tx('2026-11-06', -400, { category_id: 'food' }),
+      ]),
+    )
+    expect(p.incomeStatuses.map((s) => [s.income.id, s.received, s.arrivedOn])).toEqual([
+      ['me', false, null],
+      ['her', true, '2026-11-01'],
+    ])
+    // No month in the period: falls back to the day inside the period.
+    expect(p.nextInflux).toMatchObject({ income: { id: 'me' }, expected: '2026-11-01', late: true })
+  })
+
+  it('counts days and cash until a salary expected later', () => {
+    const p = computePocket(
+      base(
+        [
+          tx('2026-11-01', 6000, { income_id: 'me', category_id: 'inc' }),
+          tx('2026-11-05', -3000, { bill_id: 'rent' }),
+          tx('2026-11-06', -400, { category_id: 'food' }),
+        ],
+        {
+          period: { start: '2026-11-01', end: '2026-11-30', month: '2026-11' },
+          incomes: [
+            { id: 'me', name: 'My salary', amount: 6000, pay_day: 1, active: true },
+            { id: 'her', name: 'Her salary', amount: 5000, pay_day: 22, active: true },
+          ],
+        },
+      ),
+    )
+    // 6000 in − 3000 rent − 50 phone (due the 20th, before her pay on the 22nd) − 400 spent
+    expect(p.nextInflux).toEqual({
+      income: expect.objectContaining({ id: 'her' }),
+      expected: '2026-11-22',
+      late: false,
+      available: 2550,
+      daysUntil: 12,
+      perDay: round2(2550 / 12),
+    })
+  })
+
+  it('a salary paid on the 28th is already next month’s', () => {
+    const p = computePocket(
+      base([], { period: { start: '2026-11-01', end: '2026-11-30', month: '2026-12' } }),
+    )
+    expect(p.incomeStatuses.find((s) => s.income.id === 'her')?.expected).toBe('2026-11-28')
+  })
+
+  it('has no next influx once every salary is in', () => {
+    const p = computePocket(
+      base([
+        tx('2026-11-01', 6000, { income_id: 'me' }),
+        tx('2026-11-02', 5000, { income_id: 'her' }),
+      ]),
+    )
+    expect(p.nextInflux).toBeNull()
   })
 })

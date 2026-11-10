@@ -68,7 +68,7 @@ values
 -- Plan: income, bills, goals, a few budgets and rules.
 insert into public.incomes (household_id, name, amount, pay_day, match)
 values
-  (current_setting('hml.seed_household')::uuid, 'My salary', 7200, 10, 'wynagrodzenie acme'),
+  (current_setting('hml.seed_household')::uuid, 'My salary', 7200, 15, 'wynagrodzenie acme'),
   (current_setting('hml.seed_household')::uuid, 'Partner''s salary', 6400, 1, 'pensja');
 
 insert into public.bills (household_id, name, amount, due_day, match, category_id)
@@ -111,10 +111,10 @@ from (values
   (7, '00000000-0000-4000-d000-000000000001', 5, -259.99, 'Allegro zakupy', 'ALLEGRO', null),
   (8, '00000000-0000-4000-d000-000000000002', 6, -42.00, 'UBER *TRIP', 'UBER', null),
   (9, '00000000-0000-4000-d000-000000000001', 8, -139.00, 'ZDROFIT karnet', 'ZDROFIT', null),
-  (10, '00000000-0000-4000-d000-000000000002', 9, 6400.00, 'Pensja 10/2026', 'Firma Sp. z o.o.', null),
+  (10, '00000000-0000-4000-d000-000000000002', 12, 6400.00, 'Pensja 11/2026', 'Firma Sp. z o.o.', null),
   (11, '00000000-0000-4000-d000-000000000001', 12, -310.12, 'LIDL SP. Z O.O. WARSZAWA', 'LIDL', null),
   (12, '00000000-0000-4000-d000-000000000001', 15, -60.00, 'NETFLIX.COM', 'NETFLIX', null),
-  (13, '00000000-0000-4000-d000-000000000001', 32, 7200.00, 'Wynagrodzenie ACME 09/2026', 'ACME S.A.', null),
+  (13, '00000000-0000-4000-d000-000000000001', 26, 7200.00, 'Wynagrodzenie ACME 10/2026', 'ACME S.A.', null),
   (14, '00000000-0000-4000-d000-000000000002', 35, -3400.00, 'Czynsz październik', 'Jan Kowalski', 'PL50102010260000042270201111'),
   (15, '00000000-0000-4000-d000-000000000001', 36, -95.40, 'ROSSMANN 123', 'ROSSMANN', null)
 ) as t (n, account, days_ago, amount, description, counterparty, iban);

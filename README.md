@@ -16,7 +16,17 @@ supabase/           migrations, seed, pgTAP tests, edge functions (bank, bank-sy
 
 ## How the number is worked out
 
-For the current budget month (it starts on your usual payday; set the day in Settings):
+Each budget month is for a calendar month ("November budget"), and it **starts with the first salary to arrive** for it:
+
+- With two salaries on different days (say hers on the 1st, mine on the 15th), whichever arrives first starts the month. The other is the month's **second influx**.
+- Anything paid **from the 24th on counts for the next month**. A salary in the last week of October is November's: an early payday. That holds for a salary normally paid on the 26th, for one that came early, and even for one that's very late.
+- Otherwise a salary belongs to the month whose expected payday it's closest to.
+- Until a salary arrives, the month starts on the earliest expected payday. If one is late, the month rolls over on that day anyway, and the start moves once the money comes.
+- A salary is recognised by its income's bank match text (Plan → Income). An income with **Payday** switched off (e.g. a small regular transfer) still counts as income but never starts a month. With no salaries set up, months start on the day set in Settings.
+
+The Pocket screen shows the month, why it started ("started when Her salary arrived"), and each salary as arrived or expected. While a salary is still to come, it also shows **what you have until it lands**: income already in, minus bills paid or due by that day, minus spending so far, with the amount per day. If that's negative, it shows how much you'll be short.
+
+Then for the whole month:
 
 ```
 in my pocket = income − bills − goals − spent so far
@@ -28,7 +38,7 @@ in my pocket = income − bills − goals − spent so far
 - **Spent**: money out in spending categories, plus uncategorised money out, that isn't a bill. A refund in a spending category reduces it.
 - **Never counted**: transfers between your own accounts (spotted automatically by IBAN), savings movements, transactions you mark "leave out", and accounts with **In pocket** switched off (e.g. a savings account).
 
-**Payday early or late?** Press **Payday! Start the new month** on the Pocket screen on the day the salary arrives (or pick the date). The new month starts that day, and it replaces the usual start day if that falls within 15 days of it. The month before stretches or shrinks to meet it. Until you press it, the month rolls over on the usual day as before. A pressed payday can be undone from the same sheet, and both of you see it. There is one payday per month for the whole budget. If one of you already pressed it and the other presses a few days later, nothing changes. The sheet says who started the month and when, and offers **Keep** or **Move the start to …**. The database enforces this too (`mark_payday`), so two presses at the same moment can't make two months.
+**Salary not picked up?** If a salary wasn't matched (no bank sync for that account, or the match text is missing), use **Mark payday** under the pocket number. A marked payday counts like a salary arriving. There's one per month for the whole budget. If one of you already marked it and the other presses a few days later, nothing changes: the sheet says who started the month and when, and offers **Keep** or **Move the start to …**. The database enforces this too (`mark_payday`). A marked payday can be undone.
 
 The pocket screen also shows the amount per day for the days left, bills still to pay, and each category against its optional budget. Arrows step back through past months.
 
@@ -85,7 +95,7 @@ You need a GitHub account, a free [Supabase](https://supabase.com) account, the 
    ```sql
    insert into public.signup_allowlist (entry) values ('you@gmail.com'), ('her@gmail.com');
    ```
-10. **First run:** one of you signs in and creates the budget (pick the payday as the start day). Then **Settings → Create invite link**, and send it to the other. Next, **Banks → Connect a bank** for each bank: each of you connects your own accounts, signing in at the bank. Finally, fill in **Plan**: incomes, bills (with match texts), goals and budgets.
+10. **First run:** one of you signs in and creates the budget. Then **Settings → Create invite link**, and send it to the other. Next, **Banks → Connect a bank** for each bank: each of you connects your own accounts, signing in at the bank. Finally, fill in **Plan**: both salaries with their usual day and bank match text (that is what starts each month), then bills (with match texts), goals and budgets.
 
 ### Bank sync
 

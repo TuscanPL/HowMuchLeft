@@ -6,6 +6,7 @@ import {
   budgetPeriod,
   computePocket,
   todayIn,
+  type PaydayPlan,
   type Period,
   type Pocket,
 } from '@hml/shared'
@@ -61,8 +62,37 @@ export const useHouseholdStore = defineStore('household', () => {
   const billById = computed(() => new Map(bills.value.map((b) => [b.id, b])))
   const incomeById = computed(() => new Map(incomes.value.map((i) => [i.id, i])))
 
+  /** Salaries that arrived (transactions matched to an income), for working out where months start. */
+  const arrivalRows = ref<{ booked_on: string; income_id: string }[]>([])
+
+  /** What decides where budget months start: salary days, salary arrivals, pressed paydays. */
+  const plan = computed<PaydayPlan>(() => {
+    const salaries = incomes.value.filter((i) => i.active && i.starts_month)
+    const payDayOf = new Map(salaries.map((i) => [i.id, i.pay_day]))
+    return {
+      startDay: household.value?.period_start_day ?? 1,
+      payDays: salaries.map((i) => i.pay_day),
+      arrivals: arrivalRows.value
+        .filter((a) => payDayOf.has(a.income_id))
+        .map((a) => ({ date: a.booked_on, payDay: payDayOf.get(a.income_id)! })),
+      paydays: paydays.value,
+    }
+  })
+
   function period(offset = 0): Period {
-    return budgetPeriod(today.value, household.value?.period_start_day ?? 1, offset, paydays.value)
+    return budgetPeriod(today.value, plan.value, offset)
+  }
+
+  /** Why a budget month starts when it does: a salary arriving, a pressed payday, or the calendar. */
+  function startReason(
+    p: Period,
+  ): { kind: 'salary'; income: string } | { kind: 'payday'; by: string | null } | null {
+    if (!p.arrived) return null
+    if (paydays.value.includes(p.start)) return { kind: 'payday', by: paydayBy(p.start) }
+    const a = arrivalRows.value.find(
+      (r) => r.booked_on === p.start && incomeById.value.has(r.income_id),
+    )
+    return a ? { kind: 'salary', income: incomeById.value.get(a.income_id)!.name } : null
   }
 
   function pocketFor(offset = 0): Pocket {
@@ -114,12 +144,11 @@ export const useHouseholdStore = defineStore('household', () => {
       return
     }
     // Paydays first: they decide which months of transactions to load.
-    await loadPaydays()
+    await Promise.all([loadPaydays(), loadTable('incomes'), loadArrivals()])
     await Promise.all([
       loadMembers(),
       loadTable('categories'),
       loadTable('bills'),
-      loadTable('incomes'),
       loadTable('goals'),
       loadTable('rules'),
       loadTable('accounts'),
@@ -127,6 +156,21 @@ export const useHouseholdStore = defineStore('household', () => {
       loadTransactions(),
     ])
     startRealtime()
+  }
+
+  async function loadArrivals() {
+    const rows = check(
+      await supabase
+        .from('transactions')
+        .select('booked_on, income_id')
+        .eq('household_id', household.value!.id)
+        .not('income_id', 'is', null)
+        .eq('ignored', false)
+        .gt('amount', 0)
+        .gte('booked_on', addDays(today.value, -450))
+        .order('booked_on'),
+    )
+    arrivalRows.value = rows as { booked_on: string; income_id: string }[]
   }
 
   async function loadPaydays() {
@@ -253,7 +297,11 @@ export const useHouseholdStore = defineStore('household', () => {
     channel.on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'transactions', filter },
-      () => scheduleReload('transactions', () => loadTransactions(loadedFrom.value ?? undefined)),
+      () =>
+        scheduleReload('transactions', async () => {
+          await loadArrivals()
+          await loadTransactions(loadedFrom.value ?? undefined)
+        }),
     )
     channel.subscribe()
   }
@@ -280,6 +328,7 @@ export const useHouseholdStore = defineStore('household', () => {
     connections.value = []
     transactions.value = []
     paydayRows.value = []
+    arrivalRows.value = []
   }
 
   async function reload() {
@@ -359,6 +408,8 @@ export const useHouseholdStore = defineStore('household', () => {
       await supabase.from('transactions').update(patch).eq('id', id).select().single(),
     )
     transactions.value = transactions.value.map((t) => (t.id === id ? updated : t))
+    // Marking a payment as a salary (or not) can move where the month starts.
+    if ('income_id' in patch || 'ignored' in patch) await loadArrivals()
   }
 
   /** A manual account for cash (or a bank we don't sync), created on first use. */
@@ -408,6 +459,7 @@ export const useHouseholdStore = defineStore('household', () => {
   async function deleteTransaction(id: string) {
     check(await supabase.from('transactions').delete().eq('id', id))
     transactions.value = transactions.value.filter((t) => t.id !== id)
+    await loadArrivals()
   }
 
   /** Re-runs bills, incomes and rules over every transaction nobody edited by hand. */
@@ -447,6 +499,7 @@ export const useHouseholdStore = defineStore('household', () => {
 
   async function recategorize() {
     check(await supabase.rpc('recategorize', { p_household_id: household.value!.id }))
+    await loadArrivals()
     await loadTransactions(loadedFrom.value ?? undefined)
   }
 
@@ -489,6 +542,9 @@ export const useHouseholdStore = defineStore('household', () => {
     deleteTransaction,
     recategorize,
     paydays,
+    plan,
+    startReason,
+    loadArrivals,
     markPayday,
     paydayBy,
     unmarkPayday,

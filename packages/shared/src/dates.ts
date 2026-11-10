@@ -44,33 +44,117 @@ export interface Period {
   start: IsoDate
   /** Last day, inclusive. */
   end: IsoDate
+  /** The calendar month this budget is for ("2026-11"). */
+  month?: string
+  /** It started because a salary arrived (or someone pressed Payday), not just by the calendar. */
+  arrived?: boolean
 }
 
-/** How close (in days) a pressed "payday" must be to the usual start day to replace it. */
+/** How close (in days) a pressed "payday" counts as the same month's (see mark_payday). */
 export const PAYDAY_WINDOW_DAYS = 15
 
 /**
- * Every day a budget month starts, from `from` to `to` (inclusive, roughly):
- * the usual `startDay` of each month, except where a payday was marked within
- * 15 days of it (salary early or late), in which case the marked day wins.
+ * Money that arrives from this day of a month on is for the next month: a
+ * salary paid in the last week of October is November's (an early payday).
+ * The same day for every month, so a salary paid on the 24th always lands in
+ * the same budget month.
  */
-export function periodStarts(
-  startDay: number,
-  paydays: readonly IsoDate[],
-  from: IsoDate,
-  to: IsoDate,
-): IsoDate[] {
-  const f = fromIso(from)
-  const t = fromIso(to)
-  paydays = onePerMonth(paydays)
-  const starts = new Set<IsoDate>(paydays)
-  const months = (t.getUTCFullYear() - f.getUTCFullYear()) * 12 + t.getUTCMonth() - f.getUTCMonth()
-  for (let m = -1; m <= months + 1; m++) {
-    const usual = dayInMonth(f.getUTCFullYear(), f.getUTCMonth() + m, startDay)
-    const replaced = paydays.some((p) => Math.abs(daysBetween(usual, p)) <= PAYDAY_WINDOW_DAYS)
-    if (!replaced) starts.add(usual)
+export const LATE_MONTH_DAY = 24
+
+/** "2026-11" */
+export type MonthKey = string
+
+function monthIndex(date: IsoDate): number {
+  const d = fromIso(date)
+  return d.getUTCFullYear() * 12 + d.getUTCMonth()
+}
+
+function monthKey(index: number): MonthKey {
+  const y = Math.floor(index / 12)
+  const m = index - y * 12 + 1
+  return `${y}-${String(m).padStart(2, '0')}`
+}
+
+function dateIn(index: number, day: number): IsoDate {
+  return dayInMonth(Math.floor(index / 12), index % 12, day)
+}
+
+/** When a salary paid on `payDay` is expected for budget month `index` (late-month days fall in the month before). */
+function expectedFor(index: number, payDay: number): IsoDate {
+  return payDay >= LATE_MONTH_DAY ? dateIn(index - 1, payDay) : dateIn(index, payDay)
+}
+
+/** When a salary paid on `payDay` is expected for a budget month ("2026-11"). */
+export function expectedPayDate(month: MonthKey, payDay: number): IsoDate {
+  const [y, m] = month.split('-').map(Number)
+  return expectedFor(y! * 12 + m! - 1, payDay)
+}
+
+export interface PaydayPlan {
+  /** Fallback when no salaries are set up: the usual first day of a budget month. */
+  startDay: number
+  /** The days salaries usually come (incomes that start the month). */
+  payDays?: readonly number[]
+  /** Salaries that actually arrived; `payDay` is that salary's usual day. */
+  arrivals?: readonly { date: IsoDate; payDay: number }[]
+  /** Days someone pressed "Payday" by hand. */
+  paydays?: readonly IsoDate[]
+}
+
+/** Where each budget month starts, and why. */
+export interface MonthStart {
+  month: MonthKey
+  start: IsoDate
+  /** Set when a salary arrival or a pressed payday started it (not just the calendar). */
+  arrived: boolean
+}
+
+/**
+ * Every budget month's start, for months `fromIndex`..`toIndex`. A month starts
+ * with the first salary (or pressed payday) to arrive for it; until one does,
+ * on the earliest day a salary is expected.
+ */
+function monthStarts(plan: PaydayPlan, fromIndex: number, toIndex: number): MonthStart[] {
+  const payDays = plan.payDays?.length ? [...plan.payDays] : null
+  const expectedStart = (index: number): IsoDate =>
+    payDays
+      ? payDays.map((p) => expectedFor(index, p)).sort()[0]!
+      : expectedFor(index, plan.startDay)
+
+  // Which budget month an arrival belongs to: the one whose expected date is
+  // nearest, but never the current month or earlier from the 24th on.
+  const attribute = (date: IsoDate, expected: (index: number) => IsoDate): number => {
+    const own = monthIndex(date)
+    const late = fromIso(date).getUTCDate() >= LATE_MONTH_DAY
+    const candidates = late ? [own + 1, own + 2] : [own - 1, own, own + 1]
+    return candidates.reduce((best, c) =>
+      Math.abs(daysBetween(expected(c), date)) < Math.abs(daysBetween(expected(best), date))
+        ? c
+        : best,
+    )
   }
-  return [...starts].sort()
+
+  const earliest = new Map<number, IsoDate>()
+  const note = (index: number, date: IsoDate) => {
+    const cur = earliest.get(index)
+    if (!cur || date < cur) earliest.set(index, date)
+  }
+  for (const a of plan.arrivals ?? [])
+    note(
+      attribute(a.date, (i) => expectedFor(i, a.payDay)),
+      a.date,
+    )
+  for (const p of onePerMonth(plan.paydays ?? [])) note(attribute(p, expectedStart), p)
+
+  const starts: MonthStart[] = []
+  for (let index = fromIndex; index <= toIndex; index++) {
+    const arrived = earliest.get(index)
+    const start = arrived ?? expectedStart(index)
+    // Months must follow each other; an odd arrival can't make one start before the last.
+    if (starts.length && start <= starts.at(-1)!.start) continue
+    starts.push({ month: monthKey(index), start, arrived: Boolean(arrived) })
+  }
+  return starts
 }
 
 /**
@@ -95,26 +179,25 @@ export function paydayNear(paydays: readonly IsoDate[], date: IsoDate): IsoDate 
 }
 
 /**
- * The budget month containing `today` when months start on `startDay`
- * (1–28; e.g. 10 for a salary on the 10th), moved by any paydays marked by hand.
- * `offset` moves whole months: -1 is the previous one.
+ * The budget month containing `today`. Pass a plan (salary days, arrivals,
+ * pressed paydays), or just the usual start day. `offset` moves whole months:
+ * -1 is the previous one.
  */
 export function budgetPeriod(
   today: IsoDate,
-  startDay: number,
+  plan: PaydayPlan | number,
   offset = 0,
   paydays: readonly IsoDate[] = [],
 ): Period {
-  const span = Math.abs(offset) + 2
-  const t = fromIso(today)
-  const from = dayInMonth(t.getUTCFullYear(), t.getUTCMonth() - span, 1)
-  const to = dayInMonth(t.getUTCFullYear(), t.getUTCMonth() + span, 1)
-  const starts = periodStarts(startDay, paydays, from, to)
+  const p: PaydayPlan = typeof plan === 'number' ? { startDay: plan, paydays } : plan
+  const span = Math.abs(offset) + 3
+  const here = monthIndex(today)
+  const starts = monthStarts(p, here - span, here + span)
   let i = -1
-  for (let k = 0; k < starts.length; k++) if (starts[k]! <= today) i = k
-  const start = starts[i + offset]!
+  for (let k = 0; k < starts.length; k++) if (starts[k]!.start <= today) i = k
+  const cur = starts[i + offset]!
   const next = starts[i + offset + 1]!
-  return { start, end: addDays(next, -1) }
+  return { start: cur.start, end: addDays(next.start, -1), month: cur.month, arrived: cur.arrived }
 }
 
 /**

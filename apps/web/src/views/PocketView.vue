@@ -17,7 +17,12 @@ const cur = computed(() => household.currency)
 const isCurrent = computed(() => offset.value === 0)
 const paydayOpen = ref(false)
 /** This month began with a "Payday" press (so it can be undone). */
-const startedOnPayday = computed(() => household.paydays.includes(pocket.value.period.start))
+const reason = computed(() => household.startReason(pocket.value.period))
+/** "November budget": the calendar month this budget is for. */
+const monthLabel = computed(() =>
+  pocket.value.period.month ? d(isoToDate(`${pocket.value.period.month}-01`), 'month') : null,
+)
+const nextInflux = computed(() => (isCurrent.value ? pocket.value.nextInflux : null))
 
 const lastSync = computed(() => {
   const times = household.connections
@@ -44,7 +49,6 @@ const spendingCategories = computed(() =>
 )
 
 const upcomingBills = computed(() => pocket.value.billStatuses.filter((b) => !b.paid))
-const pendingIncome = computed(() => pocket.value.incomeStatuses.filter((i) => !i.received))
 </script>
 
 <template>
@@ -59,16 +63,20 @@ const pendingIncome = computed(() => pocket.value.incomeStatuses.filter((i) => !
         ‹
       </button>
       <div class="text-center">
+        <p v-if="monthLabel" class="font-semibold" data-testid="month">
+          {{ t('pocket.monthBudget', { month: monthLabel }) }}
+        </p>
         <p class="text-sm font-medium text-slate-500" data-testid="period">
           {{ d(isoToDate(pocket.period.start), 'short') }} –
           {{ d(isoToDate(pocket.period.end), 'short') }}
         </p>
-        <p v-if="startedOnPayday" class="text-xs text-slate-400">
-          {{
-            household.paydayBy(pocket.period.start)
-              ? t('payday.startedOnBy', { name: household.paydayBy(pocket.period.start) })
-              : t('payday.startedOn')
-          }}
+        <p v-if="reason" class="text-xs text-slate-400" data-testid="start-reason">
+          <template v-if="reason.kind === 'salary'">
+            {{ t('pocket.startedBySalary', { income: reason.income }) }}
+          </template>
+          <template v-else>
+            {{ reason.by ? t('payday.startedOnBy', { name: reason.by }) : t('payday.startedOn') }}
+          </template>
         </p>
       </div>
       <button
@@ -106,11 +114,11 @@ const pendingIncome = computed(() => pocket.value.incomeStatuses.filter((i) => !
     <button
       v-if="isCurrent"
       type="button"
-      class="mt-3 w-full rounded-xl border border-brand-100 bg-brand-50 py-2 text-sm font-semibold text-brand-800"
+      class="mt-2 w-full text-center text-xs text-slate-500 underline"
       data-testid="payday"
       @click="paydayOpen = true"
     >
-      💸 {{ t('payday.button') }}
+      {{ t('payday.button') }}
     </button>
 
     <p
@@ -159,13 +167,66 @@ const pendingIncome = computed(() => pocket.value.incomeStatuses.filter((i) => !
           <dd class="tabular-nums">{{ money(pocket.inPocket, cur) }}</dd>
         </div>
       </dl>
-      <p v-if="pendingIncome.length" class="mt-3 text-xs text-slate-500">
-        {{
-          t('pocket.incomeExpected', {
-            list: pendingIncome.map((i) => i.income.name).join(', '),
-          })
-        }}
-      </p>
+    </section>
+
+    <section v-if="pocket.incomeStatuses.length" class="card mt-4" data-testid="incomes">
+      <h2 class="mb-2 font-semibold">{{ t('pocket.incomeThisMonth') }}</h2>
+      <ul class="space-y-2 text-sm">
+        <li
+          v-for="s in pocket.incomeStatuses"
+          :key="s.income.id"
+          class="flex items-center justify-between gap-3"
+        >
+          <span class="min-w-0">
+            <span class="block truncate font-medium">
+              {{ s.received ? '✅' : '⏳' }} {{ s.income.name }}
+            </span>
+            <span class="block text-xs text-slate-500">
+              {{
+                s.received && s.arrivedOn
+                  ? t('pocket.arrived', { date: d(isoToDate(s.arrivedOn), 'short') })
+                  : t('pocket.expectedOn', { date: d(isoToDate(s.expected), 'short') })
+              }}
+            </span>
+          </span>
+          <span
+            class="shrink-0 tabular-nums"
+            :class="s.received ? 'font-semibold' : 'text-slate-500'"
+          >
+            {{ money(s.amount, cur) }}
+          </span>
+        </li>
+      </ul>
+      <div
+        v-if="nextInflux"
+        class="mt-3 rounded-xl p-3 text-sm"
+        :class="nextInflux.available < 0 ? 'bg-rose-50 text-rose-800' : 'bg-sky-50 text-sky-900'"
+        data-testid="next-influx"
+      >
+        <p class="font-semibold">
+          {{
+            nextInflux.late
+              ? t('pocket.untilLate', { income: nextInflux.income.name })
+              : t('pocket.until', {
+                  income: nextInflux.income.name,
+                  date: d(isoToDate(nextInflux.expected), 'short'),
+                })
+          }}
+        </p>
+        <p class="mt-0.5">
+          {{
+            nextInflux.available < 0
+              ? t('pocket.short', { amount: money(-nextInflux.available, cur) })
+              : nextInflux.perDay !== null
+                ? t('pocket.availablePerDay', {
+                    amount: money(nextInflux.available, cur),
+                    perDay: moneyRound(nextInflux.perDay, cur),
+                    days: nextInflux.daysUntil,
+                  })
+                : t('pocket.available', { amount: money(nextInflux.available, cur) })
+          }}
+        </p>
+      </div>
     </section>
 
     <RouterLink

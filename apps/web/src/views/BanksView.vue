@@ -90,6 +90,7 @@ async function syncNow() {
     await Promise.all([
       household.loadConnections(),
       household.loadTable('accounts'),
+      household.loadArrivals(),
       household.loadTransactions(household.loadedFrom ?? undefined),
     ])
   } catch (e) {

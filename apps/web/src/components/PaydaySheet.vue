@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { budgetPeriod, dayInMonth, fromIso, paydayNear } from '@hml/shared'
+import { budgetPeriod, paydayNear } from '@hml/shared'
 import { useHouseholdStore } from '@/stores/household'
 import { useAuthStore } from '@/stores/auth'
 import { isoToDate } from '@/lib/format'
@@ -19,7 +19,6 @@ const auth = useAuthStore()
 const date = ref(household.today)
 const saving = ref(false)
 const error = ref<string | null>(null)
-const startDay = computed(() => household.household?.period_start_day ?? 1)
 
 /** A payday already marked for the month this date falls in. */
 const existing = computed(() =>
@@ -31,25 +30,28 @@ const existingBy = computed(() => {
   return row === auth.profile?.display_name ? t('payday.you') : row
 })
 
+const others = computed(() => household.paydays.filter((p) => p !== existing.value))
+
 /** The month as it would run with this payday (replacing the existing one, if any). */
 const preview = computed(() => {
   if (!date.value) return null
-  const others = household.paydays.filter((p) => p !== existing.value)
-  return budgetPeriod(date.value, startDay.value, 0, [...others, date.value])
+  return budgetPeriod(date.value, { ...household.plan, paydays: [...others.value, date.value] })
 })
 
-/** The usual start day this payday replaces. */
-const usual = computed(() => {
-  if (!date.value) return null
-  const p = fromIso(date.value)
-  const candidates = [-1, 0, 1].map((m) =>
-    dayInMonth(p.getUTCFullYear(), p.getUTCMonth() + m, startDay.value),
-  )
-  return candidates.reduce((best, c) =>
-    Math.abs(fromIso(c).getTime() - p.getTime()) < Math.abs(fromIso(best).getTime() - p.getTime())
-      ? c
-      : best,
-  )
+/** The same month without this payday: when it would start otherwise, and why. */
+const without = computed(() =>
+  preview.value
+    ? budgetPeriod(preview.value.end, { ...household.plan, paydays: others.value })
+    : null,
+)
+const usual = computed(() => without.value?.start ?? null)
+
+/** A salary already arrived and started this month on or before that day: pressing changes nothing. */
+const salaryStart = computed(() => {
+  const w = without.value
+  if (!w || !date.value || w.start > date.value) return null
+  const reason = household.startReason(w)
+  return reason?.kind === 'salary' ? { date: w.start, income: reason.income } : null
 })
 
 /** Recent paydays, which can be taken back. */
@@ -89,7 +91,21 @@ async function undo(day: string) {
         <input id="payday-date" v-model="date" type="date" required class="input" />
       </div>
 
-      <template v-if="existing && existing === date">
+      <template v-if="salaryStart">
+        <p class="rounded-xl bg-brand-50 p-3 text-sm text-brand-800" data-testid="payday-already">
+          {{
+            t('payday.alreadySalary', {
+              date: d(isoToDate(salaryStart.date), 'day'),
+              income: salaryStart.income,
+            })
+          }}
+        </p>
+        <button type="button" class="btn-primary w-full" @click="emit('close')">
+          {{ t('payday.ok') }}
+        </button>
+      </template>
+
+      <template v-else-if="existing && existing === date">
         <p class="rounded-xl bg-brand-50 p-3 text-sm text-brand-800" data-testid="payday-already">
           {{ t('payday.alreadyThatDay', { by: existingBy ?? '?' }) }}
         </p>

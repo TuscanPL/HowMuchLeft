@@ -32,6 +32,7 @@ const form = reactive({
   targetDate: '',
   kind: 'expense' as CategoryKind,
   limit: '',
+  startsMonth: true,
 })
 
 const totalBills = computed(() =>
@@ -66,6 +67,7 @@ function open(kind: Kind, row?: Record<string, unknown>) {
     emoji: r.emoji ?? (kind === 'goal' ? '🎯' : '💸'),
     amount: str(r.amount),
     day: r.due_day ?? r.pay_day ?? 1,
+    startsMonth: r.starts_month ?? true,
     match: r.match ?? '',
     categoryId: r.category_id ?? '',
     target: str(r.target),
@@ -98,6 +100,7 @@ async function submit() {
           amount: amountOrThrow(form.amount),
           pay_day: form.day,
           match,
+          starts_month: form.startsMonth,
         })
         break
       case 'bill':
@@ -200,6 +203,7 @@ const expenseCategories = computed(() => household.categories.filter((c) => c.ki
             }}</span>
             <span class="block text-xs text-slate-500">
               {{ t('plan.onDay', { day: i.pay_day }) }}
+              <template v-if="i.starts_month"> · 💸 {{ t('plan.payday') }}</template>
               <template v-if="receivedIncomes.has(i.id)"> · ✓ {{ t('plan.received') }}</template>
             </span>
           </button>
@@ -406,6 +410,13 @@ const expenseCategories = computed(() => household.categories.filter((c) => c.ki
             />
             <p class="mt-1 text-xs text-slate-500">{{ t('plan.matchHelp') }}</p>
           </div>
+          <label v-if="editing === 'income'" class="flex items-start gap-2 text-sm">
+            <input v-model="form.startsMonth" type="checkbox" class="mt-1" />
+            <span>
+              {{ t('plan.startsMonth') }}
+              <span class="block text-xs text-slate-500">{{ t('plan.startsMonthHelp') }}</span>
+            </span>
+          </label>
         </template>
 
         <template v-if="editing === 'goal'">

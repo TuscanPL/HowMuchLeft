@@ -14,7 +14,14 @@
 // Transfers between our accounts and savings movements never count; neither do
 // ignored transactions or accounts left out of the pocket.
 import type { CategoryKind } from './enums.ts'
-import { addDays, daysBetween, dueDateInPeriod, type IsoDate, type Period } from './dates.ts'
+import {
+  addDays,
+  daysBetween,
+  dueDateInPeriod,
+  expectedPayDate,
+  type IsoDate,
+  type Period,
+} from './dates.ts'
 
 export interface PocketTransaction {
   id: string
@@ -82,7 +89,25 @@ export interface IncomeStatus {
   income: PocketIncome
   expected: IsoDate
   received: boolean
+  /** When it actually came (the first payment, if split). */
+  arrivedOn: IsoDate | null
   amount: number
+}
+
+/**
+ * Money already in until the next salary comes: income received so far, minus
+ * bills paid or due by that day (it may land late in the day), minus spending so far. Goals aren't taken off:
+ * this is about cash, so you can plan the days before the second salary.
+ */
+export interface NextInflux {
+  income: PocketIncome
+  expected: IsoDate
+  /** Expected day already passed and it hasn't come. */
+  late: boolean
+  available: number
+  /** Days from today until it's expected (null when late). */
+  daysUntil: number | null
+  perDay: number | null
 }
 
 export interface CategorySpend {
@@ -107,6 +132,8 @@ export interface Pocket {
   perDay: number
   billStatuses: BillStatus[]
   incomeStatuses: IncomeStatus[]
+  /** The next salary still to come this month, if any. */
+  nextInflux: NextInflux | null
   categories: CategorySpend[]
   /** Spending categories over their budget: the pocket already absorbs it, but it's worth a warning. */
   overBudget: CategorySpend[]
@@ -149,8 +176,12 @@ export function computePocket(input: PocketInput): Pocket {
       const received = got.length > 0
       return {
         income,
-        expected: dueDateInPeriod(period, income.pay_day),
+        // A salary paid late in a month is expected in the month before (see LATE_MONTH_DAY).
+        expected: period.month
+          ? expectedPayDate(period.month, income.pay_day)
+          : dueDateInPeriod(period, income.pay_day),
         received,
+        arrivedOn: received ? got.map((t) => t.booked_on).sort()[0]! : null,
         amount: received ? round2(sum(got.map((t) => t.amount))) : income.amount,
       }
     })
@@ -190,6 +221,28 @@ export function computePocket(input: PocketInput): Pocket {
     daysBetween(today < period.start ? period.start : today, addDays(period.end, 1)),
   )
 
+  const pending = incomeStatuses.filter((s) => !s.received)
+  let nextInflux: NextInflux | null = null
+  if (pending.length) {
+    const next = pending[0]!
+    const late = next.expected <= today
+    const cutoff = late ? today : next.expected
+    const receivedSoFar = sum(incomeStatuses.filter((s) => s.received).map((s) => s.amount))
+    const billsBefore = sum(
+      billStatuses.filter((b) => b.paid || b.due <= cutoff).map((b) => b.amount),
+    )
+    const available = round2(receivedSoFar + otherIncome - billsBefore - spent)
+    const daysUntil = late ? null : Math.max(1, daysBetween(today, next.expected))
+    nextInflux = {
+      income: next.income,
+      expected: next.expected,
+      late,
+      available,
+      daysUntil,
+      perDay: daysUntil === null ? null : round2(available / daysUntil),
+    }
+  }
+
   const categories: CategorySpend[] = input.categories
     .filter((c) => c.kind === 'expense')
     .map((c) => categorySpend(c, spentByCategory.get(c.id) ?? 0))
@@ -209,6 +262,7 @@ export function computePocket(input: PocketInput): Pocket {
     perDay: round2(inPocket / daysLeft),
     billStatuses,
     incomeStatuses,
+    nextInflux,
     categories,
     overBudget: categories.filter((c) => c.left !== null && c.left < 0),
   }

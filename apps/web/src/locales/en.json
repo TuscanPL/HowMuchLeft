@@ -73,7 +73,6 @@
     "bills": "Bills",
     "goals": "Goals",
     "spent": "Spent",
-    "incomeExpected": "Still expected: {list}",
     "upcomingBills": "Bills still to pay",
     "categories": "Spending",
     "setBudgets": "Budgets ›",
@@ -83,7 +82,17 @@
     "uncategorised": "{n} transaction to sort | {n} transactions to sort",
     "lastSync": "Banks synced {date}",
     "noBanks": "No bank connected yet.",
-    "bankNeedsAttention": "A bank connection needs attention."
+    "bankNeedsAttention": "A bank connection needs attention.",
+    "monthBudget": "{month} budget",
+    "startedBySalary": "started when {income} arrived",
+    "incomeThisMonth": "Income this month",
+    "arrived": "arrived {date}",
+    "expectedOn": "expected {date}",
+    "until": "Until {income} on {date}",
+    "untilLate": "{income} is late",
+    "availablePerDay": "{amount} to live on: {perDay} a day for {days} days. Bills due by then are already taken off.",
+    "available": "{amount} to live on until it arrives.",
+    "short": "{amount} short until it arrives, counting bills due by then."
   },
   "activity": {
     "title": "Activity",
@@ -122,7 +131,7 @@
     "title": "Plan",
     "month": "month",
     "income": "Income",
-    "incomeHelp": "What comes in each month. Until it arrives, the expected amount counts.",
+    "incomeHelp": "What comes in each month. The first salary to arrive starts the budget month; the others are the second influx. Anything paid from the 24th on counts for the next month. Until a salary arrives, the expected amount counts.",
     "bills": "Bills",
     "billsHelp": "Set aside up front. A bank payment containing the match text marks the bill paid.",
     "goals": "Goals",
@@ -165,7 +174,10 @@
     "noLimit": "No limit",
     "ruleMatch": "Transactions containing",
     "ruleIncomplete": "Fill in the text and the category.",
-    "deleteConfirm": "Delete \"{name}\"?"
+    "deleteConfirm": "Delete \"{name}\"?",
+    "startsMonth": "Payday: its arrival can start the budget month",
+    "startsMonthHelp": "Turn off for smaller regular transfers in that shouldn't move the month.",
+    "payday": "payday"
   },
   "kinds": {
     "expense": "Spending",
@@ -221,8 +233,8 @@
   "settings": {
     "title": "Settings",
     "household": "Budget",
-    "startDay": "Budget month starts on day",
-    "startDayHelp": "Your usual payday, e.g. 10 if the salary comes on the 10th. When it comes early or late, press Payday on the Pocket screen.",
+    "startDay": "Usual first day of the budget month",
+    "startDayHelp": "Only used until you add salaries in Plan. After that, each month starts with the first salary to arrive.",
     "members": "Who's in",
     "you": "you",
     "invitesHelp": "An invite link lets one person join and expires after 7 days.",
@@ -246,9 +258,9 @@
     "unavailable": "Couldn't check right now. Updates are checked in the installed or opened app when you're online."
   },
   "payday": {
-    "button": "Payday! Start the new month",
+    "button": "Salary not picked up? Mark payday",
     "title": "Payday",
-    "intro": "Salary came early or late? Start the new budget month on the day it arrived. Bills, goals and budgets reset from that day.",
+    "intro": "Normally the month starts by itself when a salary arrives (set the bank text to match in Plan). Use this if a salary wasn't matched, or there's no bank sync for it.",
     "date": "Salary arrived on",
     "preview": "This month will run {start} – {end}, instead of starting on {usual}.",
     "confirm": "Start the new month",
@@ -262,6 +274,7 @@
     "movePreview": "Moving it makes the month run {start} – {end}.",
     "ok": "OK",
     "you": "you",
-    "startedOnBy": "started on payday by {name}"
+    "startedOnBy": "started on payday by {name}",
+    "alreadySalary": "This month already started on {date}, when {income} arrived."
   }
 }
