@@ -1,0 +1,30 @@
+name: Sync banks
+
+on:
+  schedule:
+    # 03:30 UTC = 05:30 Warsaw in summer, 04:30 in winter: yesterday's payments are
+    # booked by then. PSD2 lets an app read an account 4 times a day without you;
+    # this uses one, so "Sync now" in the app stays free.
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Also counts as project activity, so the free Supabase project stays awake.
+      - name: Call bank-sync
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          summary=$(curl --fail-with-body -sS -X POST --max-time 140 \
+            -H "x-cron-secret: $CRON_SECRET" \
+            "https://$SUPABASE_PROJECT_REF.supabase.co/functions/v1/bank-sync")
+          echo "$summary"
+          errors=$(echo "$summary" | jq '.errors | length')
+          if [ "$errors" -gt 0 ]; then
+            echo "::warning::Some bank connections failed: $(echo "$summary" | jq -c '.errors')"
+          fi
