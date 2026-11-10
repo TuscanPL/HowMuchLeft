@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HowMuchLeft</title>
+    <script>
+      // The bank sends people back here with ?code=…&state=… (or ?error=…).
+      // A separate page keeps those params away from Supabase's own ?code= sign-in
+      // handling; hand them to the app's #/bank/callback route.
+      var q = window.location.search
+      window.location.replace('./#/bank/callback' + q)
+    </script>
+  </head>
+  <body></body>
+</html>
