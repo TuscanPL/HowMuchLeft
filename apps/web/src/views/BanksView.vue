@@ -11,7 +11,6 @@ import BottomSheet from '@/components/BottomSheet.vue'
 const { t, d } = useI18n()
 const household = useHouseholdStore()
 
-const syncing = ref(false)
 const syncResult = ref<string | null>(null)
 const error = ref<string | null>(null)
 
@@ -80,23 +79,14 @@ async function connect(bank: { name: string; country: string }) {
 }
 
 async function syncNow() {
-  syncing.value = true
   syncResult.value = null
   error.value = null
   try {
-    const r = await bankApi.sync(household.household!.id)
+    const r = await household.syncBanks()
     syncResult.value = t('banks.synced', { n: r.inserted }, r.inserted)
     if (r.errors.length) error.value = r.errors.map((e) => e.message).join('; ')
-    await Promise.all([
-      household.loadConnections(),
-      household.loadTable('accounts'),
-      household.loadArrivals(),
-      household.loadTransactions(household.loadedFrom ?? undefined),
-    ])
   } catch (e) {
     error.value = (e as Error).message
-  } finally {
-    syncing.value = false
   }
 }
 
@@ -148,11 +138,11 @@ function daysLeft(c: Connection) {
         v-if="visibleConnections.length"
         type="button"
         class="btn-secondary py-1.5"
-        :disabled="syncing"
+        :disabled="household.bankSyncing"
         data-testid="sync-now"
         @click="syncNow"
       >
-        {{ syncing ? t('banks.syncing') : t('banks.syncNow') }}
+        {{ household.bankSyncing ? t('banks.syncing') : t('banks.syncNow') }}
       </button>
     </header>
     <p class="mt-1 text-sm text-slate-500">

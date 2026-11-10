@@ -9,8 +9,10 @@ import {
   type PaydayPlan,
   type Period,
   type Pocket,
+  type SyncSummary,
 } from '@hml/shared'
 import { supabase, type Tables } from '@/lib/supabase'
+import { bankApi } from '@/lib/bank'
 import { useAuthStore } from './auth'
 
 export type Household = Tables<'households'>
@@ -23,6 +25,10 @@ export type Account = Tables<'accounts'>
 export type Transaction = Tables<'transactions'>
 export type Connection = Tables<'bank_connections'>
 export type Member = Tables<'household_members'> & { profile: Tables<'profiles'> | null }
+
+/** Opening the app syncs the banks when they were last read longer ago than this. */
+const AUTO_SYNC_AFTER_MS = 60 * 60_000
+const AUTO_SYNC_RETRY_MS = 10 * 60_000
 
 /** How many budget months of transactions to keep loaded (the current one and before). */
 const MONTHS_LOADED = 3
@@ -507,6 +513,49 @@ export const useHouseholdStore = defineStore('household', () => {
     await loadPaydays()
   }
 
+  // ---- bank sync ----------------------------------------------------------
+
+  /** A sync is running (from "Sync now" or on opening the app). */
+  const bankSyncing = ref(false)
+  let syncing: Promise<SyncSummary> | null = null
+  let lastAutoAttempt = 0
+
+  /** Pulls fresh balances and transactions from the banks, then reloads. */
+  function syncBanks(): Promise<SyncSummary> {
+    syncing ??= (async () => {
+      bankSyncing.value = true
+      try {
+        const summary = await bankApi.sync(household.value!.id)
+        await Promise.all([loadConnections(), loadTable('accounts'), loadArrivals()])
+        await loadTransactions(loadedFrom.value ?? undefined)
+        return summary
+      } finally {
+        bankSyncing.value = false
+        syncing = null
+      }
+    })()
+    return syncing
+  }
+
+  /**
+   * Opening the app (or coming back to it) syncs if the banks haven't been read
+   * for an hour. A person is present, so this doesn't use up the 4 reads a day
+   * banks allow without you. A failed try waits 10 minutes before the next.
+   */
+  async function autoSync() {
+    if (!household.value || syncing || !navigator.onLine) return
+    if (Date.now() - lastAutoAttempt < AUTO_SYNC_RETRY_MS) return
+    const stale = connections.value.some(
+      (c) =>
+        (c.status === 'active' || c.status === 'error') &&
+        (!c.last_synced_at || Date.now() - Date.parse(c.last_synced_at) > AUTO_SYNC_AFTER_MS),
+    )
+    if (!stale) return
+    lastAutoAttempt = Date.now()
+    // Problems show on the connection itself (status and last error); nothing to report here.
+    await syncBanks().catch(() => {})
+  }
+
   async function recategorize() {
     check(await supabase.rpc('recategorize', { p_household_id: household.value!.id }))
     await loadArrivals()
@@ -552,6 +601,9 @@ export const useHouseholdStore = defineStore('household', () => {
     deleteTransaction,
     recategorize,
     paydays,
+    bankSyncing,
+    syncBanks,
+    autoSync,
     plan,
     startReason,
     loadArrivals,

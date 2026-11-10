@@ -100,6 +100,7 @@ You need a GitHub account, a free [Supabase](https://supabase.com) account, the 
 ### Bank sync
 
 - The **Sync banks** workflow runs every morning at 03:30 UTC and pulls balances and the last few days of transactions for every connection. It re-reads 10 days back so late bookings and pending card payments that got booked are caught. The first sync of a new account reads 90 days back.
+- **Opening the app** (or coming back to it) syncs by itself when the banks were last read more than an hour ago. While it runs, the Pocket screen says "Getting the latest from the banks…". A failed try waits 10 minutes before the next.
 - **Sync now** on the Banks page syncs straight away. Banks let an app read an account 4 times a day on its own, but a sync you start yourself doesn't count against that.
 - **Consents end.** PSD2 consents last up to 180 days (some banks give 90). The Banks page counts the days down. From two weeks before the end it shows **Reconnect**: go through the bank sign-in again. The accounts and their history stay; nothing is lost.
 - Only read access is ever asked for. Your bank logins never pass through this app; you sign in on the bank's own page. The Enable Banking session id lives in `bank_connection_secrets`, a table no browser can read.

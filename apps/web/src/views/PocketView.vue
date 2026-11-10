@@ -131,6 +131,13 @@ const upcomingBills = computed(() => pocket.value.billStatuses.filter((b) => b.d
         t('nav.banks')
       }}</RouterLink>
     </p>
+    <p
+      v-else-if="isCurrent && household.bankSyncing"
+      class="mt-2 text-center text-xs text-slate-400"
+      data-testid="syncing"
+    >
+      {{ t('pocket.syncing') }}
+    </p>
     <p v-else-if="isCurrent && lastSync" class="mt-2 text-center text-xs text-slate-400">
       {{ t('pocket.lastSync', { date: d(new Date(lastSync), 'long') }) }}
     </p>

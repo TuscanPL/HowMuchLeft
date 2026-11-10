@@ -1,8 +1,21 @@
 <script setup lang="ts">
+import { onBeforeUnmount, onMounted } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { useHouseholdStore } from '@/stores/household'
 
 const { t } = useI18n()
+const household = useHouseholdStore()
+
+// Fresh numbers whenever someone opens the app or comes back to it (see autoSync).
+function onVisible() {
+  if (document.visibilityState === 'visible') void household.autoSync()
+}
+onMounted(() => {
+  void household.autoSync()
+  document.addEventListener('visibilitychange', onVisible)
+})
+onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisible))
 const tabs = [
   { name: 'pocket', icon: '👛' },
   { name: 'activity', icon: '🧾' },

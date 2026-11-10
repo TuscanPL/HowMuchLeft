@@ -92,7 +92,8 @@
     "untilLate": "{income} is late",
     "availablePerDay": "{amount} to live on: {perDay} a day for {days} days. Bills due by then are already taken off.",
     "available": "{amount} to live on until it arrives.",
-    "short": "{amount} short until it arrives, counting bills due by then."
+    "short": "{amount} short until it arrives, counting bills due by then.",
+    "syncing": "Getting the latest from the banks…"
   },
   "activity": {
     "title": "Activity",
