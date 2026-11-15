@@ -29,7 +29,8 @@ jobs:
       - run: pnpm build:functions
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinned: CLI v3 made `db push` target the local stack by default.
+          version: 2.122.1
       - run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
       - run: supabase db push
       - run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"
