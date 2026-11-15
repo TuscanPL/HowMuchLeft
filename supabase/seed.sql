@@ -132,3 +132,27 @@ from (values
   (14, '00000000-0000-4000-d000-000000000002', 35, -3400.00, 'Czynsz październik', 'Jan Kowalski', 'PL50102010260000042270201111'),
   (15, '00000000-0000-4000-d000-000000000001', 36, -95.40, 'ROSSMANN 123', 'ROSSMANN', null)
 ) as t (n, account, days_ago, amount, description, counterparty, iban);
+
+-- An event: beers at a friend's place three days ago. Two of my charges from
+-- that evening are in it, one from the same day isn't (a suggestion to add).
+insert into public.events (id, household_id, created_by, name, emoji, budget, started_at, ended_at)
+values ('00000000-0000-4000-f000-000000000001', current_setting('hml.seed_household')::uuid,
+        '00000000-0000-4000-a000-00000000000a', 'Beers at Kasia''s', '🍺', 150,
+        ((current_date - 3) + time '19:30') at time zone 'Europe/Warsaw',
+        ((current_date - 3) + time '23:45') at time zone 'Europe/Warsaw');
+insert into public.transactions (household_id, account_id, external_id, booked_on, amount,
+                                 description, counterparty, event_id)
+values
+  (current_setting('hml.seed_household')::uuid, '00000000-0000-4000-d000-000000000001', 'seed-ev-1',
+   current_date - 3, -64.00, 'Płatność kartą PIWNICA POD BARANAMI', 'PIWNICA POD BARANAMI',
+   '00000000-0000-4000-f000-000000000001'),
+  (current_setting('hml.seed_household')::uuid, '00000000-0000-4000-d000-000000000001', 'seed-ev-2',
+   current_date - 3, -38.50, 'Płatność kartą ZABKA Z5678', 'ZABKA',
+   '00000000-0000-4000-f000-000000000001'),
+  (current_setting('hml.seed_household')::uuid, '00000000-0000-4000-d000-000000000001', 'seed-ev-3',
+   current_date - 3, -27.00, 'UBER *TRIP', 'UBER', null);
+
+-- A secret goal: only Me sees it; Partner sees "Private savings 300 zł" in the pocket.
+insert into public.goals (household_id, name, emoji, target, saved, monthly_contribution, private_to)
+values (current_setting('hml.seed_household')::uuid, 'Anniversary trip surprise', '🎁', 3000, 600, 300,
+        '00000000-0000-4000-a000-00000000000a');

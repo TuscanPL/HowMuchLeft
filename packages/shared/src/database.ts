@@ -227,6 +227,7 @@ export type Database = {
           saved: number
           monthly_contribution: number
           target_date: string | null
+          private_to: string | null
           created_at: string
         }
         Insert: {
@@ -238,6 +239,7 @@ export type Database = {
           saved?: number
           monthly_contribution?: number
           target_date?: string | null
+          private_to?: string | null
           created_at?: string
         }
         Update: {
@@ -249,6 +251,7 @@ export type Database = {
           saved?: number
           monthly_contribution?: number
           target_date?: string | null
+          private_to?: string | null
           created_at?: string
         }
         Relationships: []
@@ -419,6 +422,7 @@ export type Database = {
           note: string | null
           ignored: boolean
           manual: boolean
+          event_id: string | null
           created_at: string
         }
         Insert: {
@@ -439,6 +443,7 @@ export type Database = {
           note?: string | null
           ignored?: boolean
           manual?: boolean
+          event_id?: string | null
           created_at?: string
         }
         Update: {
@@ -459,6 +464,43 @@ export type Database = {
           note?: string | null
           ignored?: boolean
           manual?: boolean
+          event_id?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      events: {
+        Row: {
+          id: string
+          household_id: string
+          created_by: string | null
+          name: string
+          emoji: string
+          budget: number | null
+          started_at: string
+          ended_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          household_id: string
+          created_by?: string | null
+          name: string
+          emoji?: string
+          budget?: number | null
+          started_at?: string
+          ended_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          household_id?: string
+          created_by?: string | null
+          name?: string
+          emoji?: string
+          budget?: number | null
+          started_at?: string
+          ended_at?: string | null
           created_at?: string
         }
         Relationships: []
@@ -496,10 +538,15 @@ export type Database = {
           already_member: boolean
         }[]
       }
+      event_check_in: {
+        Args: { p_household_id: string; p_name: string; p_emoji?: string; p_budget?: number }
+        Returns: Database['public']['Tables']['events']['Row']
+      }
       mark_payday: {
         Args: { p_household_id: string; p_date: string; p_move?: boolean }
         Returns: { starts_on: string; created_by: string | null; created: boolean }[]
       }
+      private_goals_monthly: { Args: { p_household_id: string }; Returns: number }
       redeem_invite: { Args: { p_token: string }; Returns: string }
       recategorize: { Args: { p_household_id: string; p_since?: string }; Returns: number }
       is_household_member: { Args: { p_household_id: string }; Returns: boolean }

@@ -5,6 +5,10 @@ import {
   addDays,
   budgetPeriod,
   computePocket,
+  eventCandidates,
+  eventSpan,
+  eventTotal,
+  type EventTotal,
   todayIn,
   type PaydayPlan,
   type Period,
@@ -24,6 +28,7 @@ export type Rule = Tables<'rules'>
 export type Account = Tables<'accounts'>
 export type Transaction = Tables<'transactions'>
 export type Connection = Tables<'bank_connections'>
+export type HmlEvent = Tables<'events'>
 export type Member = Tables<'household_members'> & { profile: Tables<'profiles'> | null }
 
 /** Opening the app syncs the banks when they were last read longer ago than this. */
@@ -49,10 +54,16 @@ export const useHouseholdStore = defineStore('household', () => {
   const bills = ref<Bill[]>([])
   const incomes = ref<Income[]>([])
   const goals = ref<Goal[]>([])
+  /** What the partner's secret goals set aside each month (one total, no details). */
+  const privateGoalsMonthly = ref(0)
   const rules = ref<Rule[]>([])
   const accounts = ref<Account[]>([])
   const connections = ref<Connection[]>([])
   const transactions = shallowRef<Transaction[]>([])
+  /** Events, newest first. */
+  const events = ref<HmlEvent[]>([])
+  /** Every tagged transaction's amount, for event totals (events can be older than what's loaded). */
+  const eventAmountRows = shallowRef<{ event_id: string; amount: number }[]>([])
   /** Days a budget month started because someone pressed "Payday" (salary early or late). */
   const paydayRows = ref<{ starts_on: string; created_by: string | null }[]>([])
   const paydays = computed(() => paydayRows.value.map((p) => p.starts_on))
@@ -115,6 +126,7 @@ export const useHouseholdStore = defineStore('household', () => {
       bills: bills.value,
       incomes: incomes.value,
       goals: goals.value,
+      privateGoals: privateGoalsMonthly.value,
       pocketAccountIds: pocketAccounts,
     })
   }
@@ -160,6 +172,7 @@ export const useHouseholdStore = defineStore('household', () => {
       loadTable('accounts'),
       loadConnections(),
       loadTransactions(),
+      loadEvents(),
     ])
     startRealtime()
   }
@@ -215,6 +228,45 @@ export const useHouseholdStore = defineStore('household', () => {
     }))
   }
 
+  async function loadEvents() {
+    const id = household.value!.id
+    const [rows, amounts] = await Promise.all([
+      supabase
+        .from('events')
+        .select('*')
+        .eq('household_id', id)
+        .order('started_at', { ascending: false }),
+      supabase
+        .from('transactions')
+        .select('event_id, amount')
+        .eq('household_id', id)
+        .not('event_id', 'is', null),
+    ])
+    events.value = check(rows)
+    eventAmountRows.value = check(amounts) as { event_id: string; amount: number }[]
+  }
+
+  const eventTotals = computed(() => {
+    const amounts = new Map<string, number[]>()
+    for (const r of eventAmountRows.value) {
+      const list = amounts.get(r.event_id) ?? []
+      list.push(r.amount)
+      amounts.set(r.event_id, list)
+    }
+    return new Map<string, EventTotal>(
+      events.value.map((e) => [e.id, eventTotal(amounts.get(e.id) ?? [], e.budget)]),
+    )
+  })
+
+  /** The event I'm checked in to, if any. */
+  const myOpenEvent = computed(() => {
+    const auth = useAuthStore()
+    return (
+      events.value.find((e) => e.created_by === auth.userId && eventSpan(e, today.value).open) ??
+      null
+    )
+  })
+
   type SimpleTable = 'categories' | 'bills' | 'incomes' | 'goals' | 'rules' | 'accounts'
   const targets = { categories, bills, incomes, goals, rules, accounts } as const
   const orderBy: Record<SimpleTable, string> = {
@@ -235,6 +287,19 @@ export const useHouseholdStore = defineStore('household', () => {
         .order(orderBy[table]),
     )
     ;(targets[table] as { value: unknown }).value = rows
+    if (table === 'goals') await loadPrivateGoals()
+  }
+
+  /**
+   * The partner's secret goals, as one monthly total. Realtime doesn't tell us
+   * about rows we can't see, so this is also re-read when the app comes back.
+   */
+  async function loadPrivateGoals() {
+    if (!household.value) return
+    privateGoalsMonthly.value = Number(
+      check(await supabase.rpc('private_goals_monthly', { p_household_id: household.value.id })) ??
+        0,
+    )
   }
 
   async function loadConnections() {
@@ -295,6 +360,9 @@ export const useHouseholdStore = defineStore('household', () => {
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'paydays', filter }, () =>
       scheduleReload('paydays', loadPaydays),
     )
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'events', filter }, () =>
+      scheduleReload('events', loadEvents),
+    )
     channel.on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'bank_connections', filter },
@@ -307,6 +375,7 @@ export const useHouseholdStore = defineStore('household', () => {
         scheduleReload('transactions', async () => {
           await loadArrivals()
           await loadTransactions(loadedFrom.value ?? undefined)
+          await loadEvents()
         }),
     )
     channel.subscribe()
@@ -329,10 +398,13 @@ export const useHouseholdStore = defineStore('household', () => {
     bills.value = []
     incomes.value = []
     goals.value = []
+    privateGoalsMonthly.value = 0
     rules.value = []
     accounts.value = []
     connections.value = []
     transactions.value = []
+    events.value = []
+    eventAmountRows.value = []
     paydayRows.value = []
     arrivalRows.value = []
   }
@@ -415,7 +487,7 @@ export const useHouseholdStore = defineStore('household', () => {
   async function updateTransaction(
     id: string,
     patch: Partial<
-      Pick<Transaction, 'category_id' | 'bill_id' | 'income_id' | 'note' | 'ignored'>
+      Pick<Transaction, 'category_id' | 'bill_id' | 'income_id' | 'note' | 'ignored' | 'event_id'>
     > & {
       manual?: boolean
     },
@@ -426,6 +498,7 @@ export const useHouseholdStore = defineStore('household', () => {
     transactions.value = transactions.value.map((t) => (t.id === id ? updated : t))
     // Marking a payment as a salary (or not) can move where the month starts.
     if ('income_id' in patch || 'ignored' in patch) await loadArrivals()
+    if ('event_id' in patch) await loadEvents()
   }
 
   /** A manual account for cash (or a bank we don't sync), created on first use. */
@@ -455,6 +528,7 @@ export const useHouseholdStore = defineStore('household', () => {
     amount: number
     description: string
     categoryId: string | null
+    eventId?: string | null
   }) {
     check(
       await supabase.from('transactions').insert({
@@ -466,10 +540,12 @@ export const useHouseholdStore = defineStore('household', () => {
         currency: currency.value,
         description: input.description,
         category_id: input.categoryId,
+        event_id: input.eventId ?? null,
         manual: true,
       }),
     )
     await loadTransactions(loadedFrom.value ?? undefined)
+    if (input.eventId) await loadEvents()
   }
 
   async function deleteTransaction(id: string) {
@@ -513,6 +589,85 @@ export const useHouseholdStore = defineStore('household', () => {
     await loadPaydays()
   }
 
+  // ---- events -------------------------------------------------------------
+
+  /** Check in: starts an event now (and closes the one I was still checked in to). */
+  async function checkIn(input: { name: string; emoji: string; budget: number | null }) {
+    const row = check(
+      await supabase.rpc('event_check_in', {
+        p_household_id: household.value!.id,
+        p_name: input.name,
+        p_emoji: input.emoji,
+        ...(input.budget === null ? {} : { p_budget: input.budget }),
+      }),
+    )
+    await loadEvents()
+    return row
+  }
+
+  async function updateEvent(
+    id: string,
+    patch: Partial<Pick<HmlEvent, 'name' | 'emoji' | 'budget' | 'started_at' | 'ended_at'>>,
+  ) {
+    check(await supabase.from('events').update(patch).eq('id', id))
+    await loadEvents()
+  }
+
+  function checkOut(id: string) {
+    return updateEvent(id, { ended_at: new Date().toISOString() })
+  }
+
+  /** Deletes the event; its transactions stay, untagged. */
+  async function deleteEvent(id: string) {
+    check(await supabase.from('events').delete().eq('id', id))
+    transactions.value = transactions.value.map((t) =>
+      t.event_id === id ? { ...t, event_id: null } : t,
+    )
+    await loadEvents()
+  }
+
+  /** Adds transactions to an event (or takes them out with null). Categories stay as they are. */
+  async function setEvent(ids: string[], eventId: string | null) {
+    if (!ids.length) return
+    const rows = check(
+      await supabase.from('transactions').update({ event_id: eventId }).in('id', ids).select(),
+    )
+    const byId = new Map(rows.map((r) => [r.id, r]))
+    transactions.value = transactions.value.map((t) => byId.get(t.id) ?? t)
+    await loadEvents()
+  }
+
+  /** What's in an event, read from the database (it may be older than what's loaded). */
+  async function eventTransactions(eventId: string): Promise<Transaction[]> {
+    return check(
+      await supabase
+        .from('transactions')
+        .select('*')
+        .eq('event_id', eventId)
+        .order('booked_on', { ascending: false })
+        .order('created_at', { ascending: false }),
+    )
+  }
+
+  /** Charges worth adding: the checked-in person's, from the event's days, not in an event yet. */
+  async function eventSuggestions(event: HmlEvent): Promise<Transaction[]> {
+    const { from, to } = eventSpan(event, today.value)
+    const mine = accounts.value.filter((a) => a.owner_id === event.created_by).map((a) => a.id)
+    if (!mine.length) return []
+    const rows = check(
+      await supabase
+        .from('transactions')
+        .select('*')
+        .in('account_id', mine)
+        .is('event_id', null)
+        .gte('booked_on', from)
+        .lte('booked_on', to)
+        .order('booked_on', { ascending: false })
+        .order('created_at', { ascending: false }),
+    )
+    return eventCandidates(event, rows, accounts.value, today.value)
+  }
+
   // ---- bank sync ----------------------------------------------------------
 
   /** A sync is running (from "Sync now" or on opening the app). */
@@ -527,7 +682,7 @@ export const useHouseholdStore = defineStore('household', () => {
       try {
         const summary = await bankApi.sync(household.value!.id)
         await Promise.all([loadConnections(), loadTable('accounts'), loadArrivals()])
-        await loadTransactions(loadedFrom.value ?? undefined)
+        await Promise.all([loadTransactions(loadedFrom.value ?? undefined), loadEvents()])
         return summary
       } finally {
         bankSyncing.value = false
@@ -569,10 +724,23 @@ export const useHouseholdStore = defineStore('household', () => {
     bills,
     incomes,
     goals,
+    privateGoalsMonthly,
+    loadPrivateGoals,
     rules,
     accounts,
     connections,
     transactions,
+    events,
+    eventTotals,
+    myOpenEvent,
+    checkIn,
+    checkOut,
+    updateEvent,
+    deleteEvent,
+    setEvent,
+    eventTransactions,
+    eventSuggestions,
+    loadEvents,
     loadedFrom,
     today,
     currency,

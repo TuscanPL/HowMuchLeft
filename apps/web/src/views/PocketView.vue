@@ -6,6 +6,7 @@ import { useHouseholdStore } from '@/stores/household'
 import { isoToDate, money, moneyRound } from '@/lib/format'
 import ProgressBar from '@/components/ProgressBar.vue'
 import PaydaySheet from '@/components/PaydaySheet.vue'
+import EventCard from '@/components/EventCard.vue'
 
 const { t, d } = useI18n()
 const household = useHouseholdStore()
@@ -151,6 +152,8 @@ const upcomingBills = computed(() => pocket.value.billStatuses.filter((b) => b.d
       }}</RouterLink>
     </p>
 
+    <EventCard v-if="isCurrent" />
+
     <section class="card mt-4" data-testid="breakdown">
       <dl class="space-y-2 text-sm">
         <div class="flex justify-between">
@@ -164,6 +167,10 @@ const upcomingBills = computed(() => pocket.value.billStatuses.filter((b) => b.d
         <div class="flex justify-between">
           <dt>🎯 {{ t('pocket.goals') }}</dt>
           <dd class="font-medium tabular-nums">− {{ money(pocket.goals, cur) }}</dd>
+        </div>
+        <div v-if="pocket.privateGoals" class="flex justify-between" data-testid="private-goals">
+          <dt>🔒 {{ t('pocket.privateGoals') }}</dt>
+          <dd class="font-medium tabular-nums">− {{ money(pocket.privateGoals, cur) }}</dd>
         </div>
         <div class="flex justify-between">
           <dt>🛒 {{ t('pocket.spent') }}</dt>

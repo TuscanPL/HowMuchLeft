@@ -17,6 +17,8 @@ const direction = ref<'out' | 'in'>('out')
 const description = ref('')
 const bookedOn = ref(household.today)
 const categoryId = ref<string | null>(null)
+// Cash paid while checked in goes to that event unless changed.
+const eventId = ref<string>(household.myOpenEvent?.id ?? '')
 const saving = ref(false)
 const error = ref<string | null>(null)
 
@@ -36,6 +38,7 @@ async function save() {
       amount: direction.value === 'out' ? -Math.abs(value) : Math.abs(value),
       description: description.value.trim(),
       categoryId: categoryId.value,
+      eventId: eventId.value || null,
     })
     emit('close')
   } catch (e) {
@@ -97,6 +100,15 @@ async function save() {
           <option :value="null">{{ t('common.uncategorised') }}</option>
           <option v-for="c in household.categories" :key="c.id" :value="c.id">
             {{ c.emoji }} {{ c.name }}
+          </option>
+        </select>
+      </div>
+      <div v-if="household.events.length">
+        <label class="label" for="add-event">{{ t('events.event') }}</label>
+        <select id="add-event" v-model="eventId" class="input">
+          <option value="">{{ t('events.noEvent') }}</option>
+          <option v-for="e in household.events" :key="e.id" :value="e.id">
+            {{ e.emoji }} {{ e.name }}
           </option>
         </select>
       </div>

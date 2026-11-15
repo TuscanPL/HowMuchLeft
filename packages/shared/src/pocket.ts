@@ -79,6 +79,11 @@ export interface PocketInput {
   bills: PocketBill[]
   incomes: PocketIncome[]
   goals: PocketGoal[]
+  /**
+   * What the other partner's secret goals set aside this month: one total, no
+   * details (see private_goals_monthly). Comes off the pocket like any goal.
+   */
+  privateGoals?: number
   /** Accounts whose transactions count. Omit to count every account. */
   pocketAccountIds?: Set<string>
 }
@@ -140,7 +145,10 @@ export interface Pocket {
   otherIncome: number
   bills: number
   billsUnpaid: number
+  /** Goals you can see. */
   goals: number
+  /** The other partner's secret goals, as one total. */
+  privateGoals: number
   spent: number
   inPocket: number
   /** Days left in the period, today included. */
@@ -251,7 +259,8 @@ export function computePocket(input: PocketInput): Pocket {
   const bills = sum(billStatuses.map((s) => s.amount))
   // Still to pay this month, in cash.
   const billsUnpaid = sum(billStatuses.filter((s) => s.due && !s.paid).map((s) => s.bill.amount))
-  const inPocket = round2(income - bills - goals - spent)
+  const privateGoals = input.privateGoals ?? 0
+  const inPocket = round2(income - bills - goals - privateGoals - spent)
   const daysLeft = Math.max(
     1,
     daysBetween(today < period.start ? period.start : today, addDays(period.end, 1)),
@@ -295,6 +304,7 @@ export function computePocket(input: PocketInput): Pocket {
     bills: round2(bills),
     billsUnpaid: round2(billsUnpaid),
     goals: round2(goals),
+    privateGoals: round2(privateGoals),
     spent: round2(spent),
     inPocket,
     daysLeft,

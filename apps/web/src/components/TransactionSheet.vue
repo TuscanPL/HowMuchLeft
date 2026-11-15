@@ -22,6 +22,7 @@ const billId = ref<string>(tx.value.bill_id ?? '')
 const incomeId = ref<string>(tx.value.income_id ?? '')
 const note = ref(tx.value.note ?? '')
 const ignored = ref(tx.value.ignored)
+const eventId = ref<string>(tx.value.event_id ?? '')
 // "Always put X in this category": prefilled with the counterparty (or the start of the text).
 const makeRule = ref(false)
 const ruleText = ref(
@@ -47,6 +48,7 @@ async function save() {
       income_id: incomeId.value || null,
       note: note.value.trim() || null,
       ignored: ignored.value,
+      event_id: eventId.value || null,
       manual: true,
     })
     if (makeRule.value && categoryId.value && ruleText.value.trim().length >= 2) {
@@ -168,6 +170,16 @@ async function auto() {
           <select id="tx-income" v-model="incomeId" class="input">
             <option value="">{{ t('activity.notIncome') }}</option>
             <option v-for="i in household.incomes" :key="i.id" :value="i.id">{{ i.name }}</option>
+          </select>
+        </div>
+
+        <div v-if="household.events.length">
+          <label class="label" for="tx-event">{{ t('events.event') }}</label>
+          <select id="tx-event" v-model="eventId" class="input" data-testid="tx-event">
+            <option value="">{{ t('events.noEvent') }}</option>
+            <option v-for="e in household.events" :key="e.id" :value="e.id">
+              {{ e.emoji }} {{ e.name }}
+            </option>
           </select>
         </div>
 
