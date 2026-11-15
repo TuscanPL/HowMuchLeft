@@ -38,7 +38,8 @@ jobs:
       - run: pnpm build:functions
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pinned: CLI v3 made `db push` target the local stack by default.
+          version: 2.122.1
       - run: supabase start -x studio,imgproxy,vector,logflare,supavisor,storage-api
       - run: supabase test db
       # The bank functions against the real database, with a fake Enable Banking.
