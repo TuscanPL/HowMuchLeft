@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useHouseholdStore, type Transaction } from '@/stores/household'
 import { isoToDate, money } from '@/lib/format'
@@ -55,6 +55,13 @@ function label(tx: Transaction) {
   return tx.counterparty || tx.description || t('activity.noDescription')
 }
 
+const eventById = computed(() => new Map(household.events.map((e) => [e.id, e])))
+
+function eventTag(tx: Transaction) {
+  const e = tx.event_id ? eventById.value.get(tx.event_id) : null
+  return e ? ` · ${e.emoji} ${e.name}` : ''
+}
+
 function tag(tx: Transaction) {
   if (tx.bill_id) return `🧾 ${household.billById.get(tx.bill_id)?.name ?? ''}`
   if (tx.income_id) return `💰 ${household.incomeById.get(tx.income_id)?.name ?? ''}`
@@ -76,9 +83,14 @@ async function older() {
   <main class="px-4 pt-[max(1.25rem,env(safe-area-inset-top))]">
     <header class="flex items-center justify-between">
       <h1 class="text-2xl font-bold">{{ t('activity.title') }}</h1>
-      <button type="button" class="btn-secondary py-1.5" @click="adding = true">
-        + {{ t('activity.addCash') }}
-      </button>
+      <div class="flex items-center gap-2">
+        <RouterLink :to="{ name: 'events' }" class="btn-secondary py-1.5" data-testid="to-events">
+          🎉 {{ t('events.title') }}
+        </RouterLink>
+        <button type="button" class="btn-secondary py-1.5" @click="adding = true">
+          + {{ t('activity.addCash') }}
+        </button>
+      </div>
     </header>
 
     <div class="mt-4 space-y-2">
@@ -135,7 +147,8 @@ async function older() {
             <span class="min-w-0 flex-1">
               <span class="block truncate font-medium">{{ label(tx) }}</span>
               <span class="block truncate text-xs text-slate-500">
-                {{ tag(tx) }} · {{ household.accountById.get(tx.account_id)?.name }}
+                {{ tag(tx) }} · {{ household.accountById.get(tx.account_id)?.name
+                }}{{ eventTag(tx) }}
                 <template v-if="tx.status === 'pending'"> · {{ t('activity.pending') }}</template>
               </span>
             </span>

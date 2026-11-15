@@ -9,13 +9,13 @@ import BillForm from '@/components/BillForm.vue'
 import ProgressBar from '@/components/ProgressBar.vue'
 
 // Everything the pocket number is built from: expected income, bills,
-// goals, category budgets, and the "always" rules for sorting transactions.
+// category budgets (goals have their own tab), and the "always" rules for sorting transactions.
 const { t, d } = useI18n()
 const household = useHouseholdStore()
 const cur = computed(() => household.currency)
 const pocket = computed(() => household.pocket)
 
-type Kind = 'income' | 'bill' | 'goal' | 'category' | 'rule'
+type Kind = 'income' | 'bill' | 'category' | 'rule'
 const editing = ref<Kind | null>(null)
 const saving = ref(false)
 const error = ref<string | null>(null)
@@ -27,10 +27,6 @@ const form = reactive({
   day: 1,
   match: '',
   categoryId: '' as string,
-  target: '',
-  saved: '',
-  monthly: '',
-  targetDate: '',
   kind: 'expense' as CategoryKind,
   limit: '',
   startsMonth: true,
@@ -103,16 +99,12 @@ function open(kind: Kind, row?: Record<string, unknown>) {
   Object.assign(form, {
     id: r.id ?? '',
     name: r.name ?? '',
-    emoji: r.emoji ?? (kind === 'goal' ? '🎯' : '💸'),
+    emoji: r.emoji ?? '💸',
     amount: str(r.amount),
     day: r.due_day ?? r.pay_day ?? 1,
     startsMonth: r.starts_month ?? true,
     match: r.match ?? '',
     categoryId: r.category_id ?? '',
-    target: str(r.target),
-    saved: str(r.saved ?? 0),
-    monthly: str(r.monthly_contribution ?? 0),
-    targetDate: r.target_date ?? '',
     kind: r.kind ?? 'expense',
     limit: str(r.monthly_limit),
   })
@@ -143,17 +135,6 @@ async function submit() {
           starts_month: form.startsMonth,
         })
         break
-      case 'goal':
-        await household.save('goals', {
-          id,
-          name: form.name.trim(),
-          emoji: form.emoji || '🎯',
-          target: amountOrThrow(form.target),
-          saved: amountOrThrow(form.saved || '0', true),
-          monthly_contribution: amountOrThrow(form.monthly || '0', true),
-          target_date: form.targetDate || null,
-        })
-        break
       case 'category':
         await household.save('categories', {
           id,
@@ -170,7 +151,7 @@ async function submit() {
         break
     }
     // New match texts and rules apply to what's already there too.
-    if (editing.value !== 'goal' && editing.value !== 'category') await household.recategorize()
+    if (editing.value !== 'category') await household.recategorize()
     editing.value = null
   } catch (e) {
     error.value = (e as Error).message
@@ -182,7 +163,6 @@ async function submit() {
 const tableFor = {
   income: 'incomes',
   bill: 'bills',
-  goal: 'goals',
   category: 'categories',
   rule: 'rules',
 } as const
@@ -305,35 +285,6 @@ async function toggleActive(table: 'bills' | 'incomes', row: { id: string; activ
       </button>
     </section>
 
-    <!-- Goals -->
-    <section id="goals">
-      <h2 class="mb-2 font-semibold">🎯 {{ t('plan.goals') }}</h2>
-      <p class="mb-2 text-sm text-slate-500">{{ t('plan.goalsHelp') }}</p>
-      <ul class="space-y-3">
-        <li v-for="g in household.goals" :key="g.id">
-          <button type="button" class="card block w-full text-left" @click="open('goal', g)">
-            <span class="flex justify-between font-medium">
-              <span>{{ g.emoji }} {{ g.name }}</span>
-              <span class="tabular-nums"
-                >{{ money(g.saved, cur) }} / {{ money(g.target, cur) }}</span
-              >
-            </span>
-            <ProgressBar class="mt-2" :value="g.saved" :max="g.target" />
-            <span class="mt-1 block text-xs text-slate-500">
-              {{
-                g.saved >= g.target
-                  ? t('plan.goalReached')
-                  : t('plan.perMonth', { amount: money(g.monthly_contribution, cur) })
-              }}
-            </span>
-          </button>
-        </li>
-      </ul>
-      <button type="button" class="mt-2 text-sm font-medium text-brand-700" @click="open('goal')">
-        + {{ t('plan.addGoal') }}
-      </button>
-    </section>
-
     <!-- Budgets / categories -->
     <section id="budgets">
       <div class="mb-2 flex items-baseline justify-between">
@@ -404,7 +355,7 @@ async function toggleActive(table: 'bills' | 'incomes', row: { id: string; activ
       <form v-else class="space-y-4" @submit.prevent="submit">
         <template v-if="editing !== 'rule'">
           <div class="flex gap-3">
-            <div v-if="editing === 'goal' || editing === 'category'" class="w-20">
+            <div v-if="editing === 'category'" class="w-20">
               <label class="label" for="f-emoji">{{ t('plan.emoji') }}</label>
               <input id="f-emoji" v-model="form.emoji" maxlength="4" class="input text-center" />
             </div>
@@ -452,33 +403,6 @@ async function toggleActive(table: 'bills' | 'incomes', row: { id: string; activ
               <span class="block text-xs text-slate-500">{{ t('plan.startsMonthHelp') }}</span>
             </span>
           </label>
-        </template>
-
-        <template v-if="editing === 'goal'">
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="label" for="f-target">{{ t('plan.target') }}</label>
-              <input
-                id="f-target"
-                v-model="form.target"
-                required
-                inputmode="decimal"
-                class="input"
-              />
-            </div>
-            <div>
-              <label class="label" for="f-saved">{{ t('plan.saved') }}</label>
-              <input id="f-saved" v-model="form.saved" inputmode="decimal" class="input" />
-            </div>
-            <div>
-              <label class="label" for="f-monthly">{{ t('plan.monthly') }}</label>
-              <input id="f-monthly" v-model="form.monthly" inputmode="decimal" class="input" />
-            </div>
-            <div>
-              <label class="label" for="f-date">{{ t('plan.by') }}</label>
-              <input id="f-date" v-model="form.targetDate" type="date" class="input" />
-            </div>
-          </div>
         </template>
 
         <template v-if="editing === 'category'">

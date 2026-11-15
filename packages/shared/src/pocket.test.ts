@@ -65,6 +65,14 @@ describe('computePocket', () => {
     expect(p.perDay).toBe(350)
   })
 
+  it("takes the partner's secret goals off as one private total", () => {
+    const p = computePocket(base([], { privateGoals: 250 }))
+    expect(p.goals).toBe(600)
+    expect(p.privateGoals).toBe(250)
+    expect(p.inPocket).toBe(7100)
+    expect(computePocket(base([])).privateGoals).toBe(0)
+  })
+
   it('uses what actually arrived and what was actually paid once matched', () => {
     const p = computePocket(
       base([

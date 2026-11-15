@@ -9,7 +9,10 @@ const household = useHouseholdStore()
 
 // Fresh numbers whenever someone opens the app or comes back to it (see autoSync).
 function onVisible() {
-  if (document.visibilityState === 'visible') void household.autoSync()
+  if (document.visibilityState !== 'visible') return
+  void household.autoSync()
+  // The partner may have changed a secret goal; realtime can't say.
+  void household.loadPrivateGoals().catch(() => {})
 }
 onMounted(() => {
   void household.autoSync()
@@ -18,6 +21,7 @@ onMounted(() => {
 onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisible))
 const tabs = [
   { name: 'pocket', icon: '👛' },
+  { name: 'goals', icon: '🎯' },
   { name: 'activity', icon: '🧾' },
   { name: 'plan', icon: '🗓️' },
   { name: 'banks', icon: '🏦' },

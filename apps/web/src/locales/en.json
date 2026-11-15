@@ -44,7 +44,8 @@
     "activity": "Activity",
     "plan": "Plan",
     "banks": "Banks",
-    "settings": "Settings"
+    "settings": "Settings",
+    "goals": "Goals"
   },
   "setup": {
     "title": "Set up your budget",
@@ -93,7 +94,8 @@
     "availablePerDay": "{amount} to live on: {perDay} a day for {days} days. Bills due by then are already taken off.",
     "available": "{amount} to live on until it arrives.",
     "short": "{amount} short until it arrives, counting bills due by then.",
-    "syncing": "Getting the latest from the banks…"
+    "syncing": "Getting the latest from the banks…",
+    "privateGoals": "Private savings"
   },
   "activity": {
     "title": "Activity",
@@ -300,5 +302,55 @@
     "you": "you",
     "startedOnBy": "started on payday by {name}",
     "alreadySalary": "This month already started on {date}, when {income} arrived."
+  },
+  "events": {
+    "title": "Events",
+    "event": "Event",
+    "noEvent": "Not part of an event",
+    "checkIn": "Check in",
+    "checkInNow": "Check in now",
+    "checkInHelp": "Going out or visiting someone? Check in now and out when you leave. Afterwards you pick which of your charges from those days belong to it. It doesn't change the pocket, it just shows what the event cost.",
+    "checkOut": "Check out",
+    "name": "What is it?",
+    "namePlaceholder": "Beers at Kasia's",
+    "emoji": "Icon",
+    "budget": "Budget (optional)",
+    "budgetPlaceholder": "e.g. 150",
+    "closesOpen": "This checks you out of {name}.",
+    "at": "At {name}",
+    "since": "Since {time}",
+    "now": "Now",
+    "all": "All events",
+    "empty": "No events yet. Check in from the Pocket screen when you head out.",
+    "count": "no charges | 1 charge | {n} charges",
+    "autoClosed": "Nobody checked out, so it closed at the end of the next day. Change that under Edit.",
+    "inEvent": "In this event ({n})",
+    "nothingYet": "Nothing added yet.",
+    "takeOut": "Take out of the event",
+    "suggestions": "From those days",
+    "suggestionsHelp": "{name}'s charges dated during the event. Tick the ones that were part of it. Card payments can take a day or two to show up.",
+    "suggestionsHelpNoOne": "Charges dated during the event.",
+    "noSuggestions": "No other charges from those days.",
+    "pickAll": "Pick all",
+    "pickNone": "Pick none",
+    "addPicked": "Add 1 charge | Add {n} charges",
+    "edit": "Edit event",
+    "checkedIn": "Checked in",
+    "checkedOut": "Checked out",
+    "endBeforeStart": "Check-out can't be before check-in.",
+    "delete": "Delete event",
+    "deleteConfirm": "Delete this event? Its charges stay, just untagged."
+  },
+  "goals": {
+    "title": "Goals",
+    "thisMonth": "Set aside this month",
+    "empty": "No goals yet. Add one to start putting money aside every month.",
+    "shared": "Ours",
+    "onlyYou": "Only you",
+    "monthsLeft": "reached this month | 1 month to go | {n} months to go",
+    "by": "by {date}",
+    "secret": "Secret goal, only I can see it",
+    "secretHelp": "Good for a surprise. {name} won't see its name, target or progress. Its monthly amount still comes off the shared pocket, so {name} sees one \"Private savings\" line with the total.",
+    "yourPartner": "Your partner"
   }
 }

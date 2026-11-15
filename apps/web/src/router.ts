@@ -41,6 +41,8 @@ export const router = createRouter({
           name: 'activity',
           component: () => import('@/views/ActivityView.vue'),
         },
+        { path: 'goals', name: 'goals', component: () => import('@/views/GoalsView.vue') },
+        { path: 'events', name: 'events', component: () => import('@/views/EventsView.vue') },
         { path: 'plan', name: 'plan', component: () => import('@/views/PlanView.vue') },
         { path: 'banks', name: 'banks', component: () => import('@/views/BanksView.vue') },
         {

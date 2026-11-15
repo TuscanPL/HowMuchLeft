@@ -34,7 +34,7 @@ in my pocket = income − bills − goals − spent so far
 
 - **Income**: every expected income (salaries) counts its amount until the transfer arrives, then the real amount. Any other money in counts too, except transfers between your own accounts and refunds.
 - **Bills**: every active bill (rent, subscriptions, a developer you pay monthly) is set aside up front. Once a bank payment contains the bill's match text (e.g. `czynsz`, `netflix`), the bill is marked paid and the real amount counts. Bills can repeat **monthly, every 2 or 3 months, every 6 months or yearly**. A bill that isn't monthly is either set aside **a bit every month** (a yearly 499 zł → 41,58 zł a month, the default) or **all in the month it's paid**. Its payment never counts as spending. In **Plan → Bills**, bills are grouped by category (Home, Subscriptions, or one you add such as "Superprofit"), and each group shows what it costs per month on average.
-- **Goals**: each goal's monthly amount is set aside until the goal is reached.
+- **Goals** (their own tab): each goal's monthly amount is set aside until the goal is reached. A goal can be **secret**, e.g. saving for a surprise: only the person who made it sees it. Its monthly amount still comes off the shared pocket, so the other person sees one **Private savings** line with the total and nothing else (no name, target or progress). The database enforces this, not just the app (`private_goals_monthly`). Bank transfers into it are not hidden in Activity.
 - **Spent**: money out in spending categories, plus uncategorised money out, that isn't a bill. A refund in a spending category reduces it.
 - **Never counted**: transfers between your own accounts (spotted automatically by IBAN), savings movements, transactions you mark "leave out", and accounts with **In pocket** switched off (e.g. a savings account).
 
@@ -50,6 +50,8 @@ The pocket screen also shows the amount per day for the days left, bills still t
 4. Otherwise the longest matching rule decides ("biedronka" → Groceries).
 
 A payment that is really a recurring cost can become a bill straight from **Activity**: open it and tap **Make this a bill**. The bill form opens filled in from the payment (name, amount, day, bank text, category), and it shows how many other payments contain the same text. Saving links this payment and those others to the new bill. When you pick a category on a transaction, tick **Always use this category** to make a rule from it. The rule is applied to older transactions too. A transaction you set by hand is never re-sorted, unless you tap **Sort automatically again**. Cash spending can be added by hand (**Activity → + Cash**).
+
+**Events.** Going out or visiting someone? Tap **Check in** on the Pocket screen, name it ("Beers at Kasia's"), and optionally give it a budget. Tap **Check out** when you leave (forgot? it closes by itself at the end of the next day). The event then lists **your** charges dated on the event's days, and you tick the ones that belong to it. Banks only give a date, not a time, so nothing is added automatically. Cash added while you're checked in goes to the event unless you change it, and any transaction can be put in an event from Activity. An event is a tag on top of the category: it never changes the pocket number, it just shows what the evening cost (money a friend pays back lowers it). If a pending card payment you tagged gets booked as a new row, the tag moves with it. All events and their totals are under **Activity → Events**.
 
 ## Setup
 
@@ -95,7 +97,7 @@ You need a GitHub account, a free [Supabase](https://supabase.com) account, the 
    ```sql
    insert into public.signup_allowlist (entry) values ('you@gmail.com'), ('her@gmail.com');
    ```
-10. **First run:** one of you signs in and creates the budget. Then **Settings → Create invite link**, and send it to the other. Next, **Banks → Connect a bank** for each bank: each of you connects your own accounts, signing in at the bank. Finally, fill in **Plan**: both salaries with their usual day and bank match text (that is what starts each month), then bills (with match texts), goals and budgets.
+10. **First run:** one of you signs in and creates the budget. Then **Settings → Create invite link**, and send it to the other. Next, **Banks → Connect a bank** for each bank: each of you connects your own accounts, signing in at the bank. Finally, fill in **Plan**: both salaries with their usual day and bank match text (that is what starts each month), then bills (with match texts) and budgets. Goals go in the **Goals** tab.
 
 ### Bank sync
 
@@ -130,7 +132,7 @@ pnpm dev                              # http://localhost:5173
 
 ```sh
 pnpm test        # unit tests; the bank-function integration test runs when the local stack is up
-pnpm db:test     # pgTAP: allowlist, RLS and bank secrets, transaction sorting
+pnpm db:test     # pgTAP: allowlist, RLS and bank secrets, transaction sorting, paydays, events, secret goals
 ```
 
 The integration test (`packages/edge/src/bank.integration.test.ts`) uses the real database and a fake Enable Banking. It runs connect → first sync → booking a pending payment → re-sync (hand-made categories survive) → cron sync → disconnect.
